@@ -1,0 +1,12 @@
+# Optional alternative to nginx+certbot.
+# Current production uses nginx (see nginx-key.whistlelads.com.conf).
+{$DOMAIN:key.whistlelads.com} {
+	encode gzip zstd
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy app:18743
+}

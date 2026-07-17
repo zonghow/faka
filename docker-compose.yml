@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    container_name: faka-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TIKAWANG_BASE_DIR: /app
+      TIKAWANG_ADDR: 0.0.0.0:18743
+      TIKAWANG_STATIC_DIR: /app/web/dist
+      TIKAWANG_DATABASE_URL: sqlite:////app/data/tikawang.db
+      TIKAWANG_STORAGE_DIR: /app/storage
+    volumes:
+      - faka_data:/app/data
+      - faka_storage:/app/storage
+    ports:
+      # Host port 18745 avoids conflict with legacy faka on 18743
+      - "127.0.0.1:18745:18743"
+
+volumes:
+  faka_data:
+  faka_storage:
