@@ -91,7 +91,18 @@ func (h *CardHandler) Create(c *gin.Context) {
 		serviceFail(c, err)
 		return
 	}
-	ok(c, gin.H{"message": "已生成 " + strconv.Itoa(len(cards)) + " 张卡密", "count": len(cards)})
+	ids := make([]uint, 0, len(cards))
+	codes := make([]string, 0, len(cards))
+	for _, card := range cards {
+		ids = append(ids, card.ID)
+		codes = append(codes, card.Code)
+	}
+	ok(c, gin.H{
+		"message": "已生成 " + strconv.Itoa(len(cards)) + " 张卡密",
+		"count":   len(cards),
+		"ids":     ids,
+		"codes":   codes,
+	})
 }
 
 func (h *CardHandler) UpdateStatus(c *gin.Context) {

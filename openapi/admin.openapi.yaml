@@ -1,0 +1,668 @@
+openapi: 3.1.0
+info:
+  title: Whistlelads Faka Cards & Files API
+  description: |
+    面向脚本/自动化的管理接口：**直接用后台密码**操作卡密与文件。
+    无需登录、无需 Session、不含 Spaces。
+
+    ## 鉴权
+    每个请求带上后台密码（任选其一）：
+
+    | 方式 | 示例 |
+    |------|------|
+    | Header `X-Admin-Password`（推荐） | `X-Admin-Password: your-password` |
+    | Header `Authorization: Bearer` | `Authorization: Bearer your-password` |
+    | Header `Authorization: Password` | `Authorization: Password your-password` |
+
+    密码错误或缺失 → `401`，body：`{"ok":false,"error":"未登录"}`
+
+    ## 空间
+    所有接口默认操作 **默认空间**（id 最小）。本规范不暴露 Spaces API。
+
+    ## 常见流程
+    1. 上传库存文件：`POST /api/admin/files/upload`
+    2. 生成卡密：`POST /api/admin/cards`（`file_count` + `quantity`）
+    3. 下载卡密并标为待使用：`POST /api/admin/cards/download`（`mark_pending: true`）
+    4. 改状态：`POST /api/admin/cards/status` / `POST /api/admin/files/status`
+  version: 1.1.0
+
+servers:
+  - url: https://key.whistlelads.com
+    description: Production
+  - url: http://127.0.0.1:18743
+    description: Local
+
+tags:
+  - name: Cards
+    description: 卡密 — 列表 / 生成 / 改状态 / 下载
+  - name: Files
+    description: 文件 — 列表 / 上传 / 改状态 / 下载
+
+security:
+  - AdminPassword: []
+
+paths:
+  /api/admin/cards:
+    get:
+      tags: [Cards]
+      summary: 分页列出卡密
+      operationId: listCards
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: q
+          in: query
+          description: 卡密模糊搜索
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: 状态过滤
+          schema:
+            $ref: '#/components/schemas/CardStatus'
+        - name: start
+          in: query
+          description: used_at 起始 `YYYY-MM-DD`
+          schema:
+            type: string
+            format: date
+        - name: end
+          in: query
+          description: used_at 结束 `YYYY-MM-DD`
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 卡密列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Cards]
+      summary: 批量生成卡密
+      operationId: createCards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCardsRequest'
+            examples:
+              oneEach:
+                summary: 生成 100 张，每张 1 个文件
+                value:
+                  file_count: 1
+                  quantity: 100
+      responses:
+        '200':
+          description: 生成成功，直接返回新建卡密的 ids 与 codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCardsResponse'
+              example:
+                ok: true
+                message: 已生成 2 张卡密
+                count: 2
+                ids: [101, 102]
+                codes:
+                  - DEFAULT-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345
+                  - DEFAULT-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/cards/status:
+    post:
+      tags: [Cards]
+      summary: 批量修改卡密状态
+      description: |
+        常用：生成后先 `available`，下载给客户前改为 `pending`（前台才能兑换）。
+      operationId: updateCardStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCardStatusRequest'
+            examples:
+              markPending:
+                value:
+                  ids: [1, 2, 3]
+                  target_status: pending
+              void:
+                value:
+                  ids: [9]
+                  target_status: voided
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkMessage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 部分 id 不存在或不在默认空间
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/admin/cards/download:
+    post:
+      tags: [Cards]
+      summary: 批量下载卡密（txt）
+      description: |
+        只下载状态为 `available` 的卡密。
+        `mark_pending: true` 时下载后改为 `pending`（推荐发货流程）。
+        响应为文本附件，不是 JSON。
+      operationId: downloadCards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadCardsRequest'
+            example:
+              ids: [1, 2, 3]
+              mark_pending: true
+      responses:
+        '200':
+          description: 卡密文本文件（每行一个 code）
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="cards_xxx.txt"'
+          content:
+            text/plain:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/cards/{id}/redemptions:
+    get:
+      tags: [Cards]
+      summary: 查询卡密兑换记录
+      operationId: getCardRedemptions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 兑换详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardRedemptionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 卡密不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/admin/files:
+    get:
+      tags: [Files]
+      summary: 分页列出文件
+      operationId: listFiles
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: q
+          in: query
+          description: 文件名模糊搜索
+          schema:
+            type: string
+        - name: card_code
+          in: query
+          description: 关联卡密精确匹配
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/FileStatus'
+        - name: start
+          in: query
+          description: uploaded_at 起始 `YYYY-MM-DD`
+          schema:
+            type: string
+            format: date
+        - name: end
+          in: query
+          description: uploaded_at 结束 `YYYY-MM-DD`
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 文件列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/files/upload:
+    post:
+      tags: [Files]
+      summary: 上传文件（.json / .zip）
+      description: |
+        - 表单字段名：`file`（可多文件）
+        - 支持 `.json`、`.zip`（zip 内只能是 json）
+        - 单批总大小 ≤ 500MB
+        - 文件名不能含中文
+        - 同名覆盖计为 `duplicated`
+      operationId: uploadFiles
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  oneOf:
+                    - type: string
+                      format: binary
+                    - type: array
+                      items:
+                        type: string
+                        format: binary
+      responses:
+        '200':
+          description: 上传结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadFilesResponse'
+              example:
+                ok: true
+                message: 新增 12 个，重复 3 个
+                imported: 12
+                created: 12
+                duplicated: 3
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/files/status:
+    post:
+      tags: [Files]
+      summary: 批量修改文件状态
+      operationId: updateFileStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFileStatusRequest'
+            examples:
+              void:
+                value:
+                  ids: [10, 11]
+                  target_status: voided
+              backToStock:
+                value:
+                  ids: [10]
+                  target_status: available
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkMessage'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 部分 id 无效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/admin/files/download:
+    post:
+      tags: [Files]
+      summary: 批量下载文件
+      description: |
+        仅 `available` / `locked`。
+        1 个文件直接返回 json；多个返回 zip。
+        `mark_sold: true` 时下载后标记 sold。
+      operationId: downloadFiles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadFilesRequest'
+            example:
+              ids: [10, 11]
+              mark_sold: false
+      responses:
+        '200':
+          description: 文件或 zip
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    AdminPassword:
+      type: apiKey
+      in: header
+      name: X-Admin-Password
+      description: |
+        后台密码（TIKAWANG_AUTH_PASSWORD）。
+        也可用 `Authorization: Bearer <password>`。
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      description: 50/100/200/500/1000/2000/5000/10000，默认 200
+      schema:
+        type: integer
+        enum: [50, 100, 200, 500, 1000, 2000, 5000, 10000]
+        default: 200
+
+  responses:
+    Unauthorized:
+      description: 密码错误或未提供
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+          example:
+            ok: false
+            error: 未登录
+    Error:
+      description: 参数/业务错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+
+  schemas:
+    OkMessage:
+      type: object
+      required: [ok, message]
+      properties:
+        ok: { type: boolean, const: true }
+        message: { type: string }
+
+    ErrorBody:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: { type: boolean, const: false }
+        error: { type: string }
+
+    CardStatus:
+      type: string
+      enum: [available, pending, sold, voided]
+      description: |
+        available=新生成 · pending=待兑换 · sold=已用 · voided=作废
+
+    FileStatus:
+      type: string
+      enum: [available, locked, sold, voided]
+      description: |
+        available=库存 · locked=锁定 · sold=已提取 · voided=作废
+
+    Pagination:
+      type: object
+      required: [page, page_size, total, total_pages, has_prev, has_next, prev_page, next_page]
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        has_prev: { type: boolean }
+        has_next: { type: boolean }
+        prev_page: { type: integer }
+        next_page: { type: integer }
+
+    Space:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        card_prefix: { type: string }
+
+    Card:
+      type: object
+      required: [id, code, file_count, status, created_at]
+      properties:
+        id: { type: integer }
+        code:
+          type: string
+          example: DEFAULT-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345
+        file_count:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/CardStatus'
+        created_at: { type: string, example: "2026-07-18 01:00:00" }
+        used_at: { type: string }
+        voided_at: { type: string }
+
+    ManagedFile:
+      type: object
+      required: [id, original_name, status, uploaded_at]
+      properties:
+        id: { type: integer }
+        original_name: { type: string }
+        status:
+          $ref: '#/components/schemas/FileStatus'
+        sold_at: { type: string }
+        sold_card: { type: string }
+        voided_at: { type: string }
+        uploaded_at: { type: string }
+
+    CardListResponse:
+      type: object
+      required: [ok, cards, pagination]
+      properties:
+        ok: { type: boolean, const: true }
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        current_space:
+          $ref: '#/components/schemas/Space'
+
+    FileListResponse:
+      type: object
+      required: [ok, files, pagination]
+      properties:
+        ok: { type: boolean, const: true }
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManagedFile'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        current_space:
+          $ref: '#/components/schemas/Space'
+
+    CreateCardsRequest:
+      type: object
+      required: [file_count]
+      properties:
+        file_count:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: 每张卡绑定文件数
+          example: 1
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 1
+          description: 生成张数
+          example: 100
+
+    CreateCardsResponse:
+      type: object
+      required: [ok, message, count, ids, codes]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        message:
+          type: string
+          example: 已生成 2 张卡密
+        count:
+          type: integer
+          description: 生成张数
+          example: 2
+        ids:
+          type: array
+          description: 新建卡密数据库 ID（顺序与 codes 对应）
+          items:
+            type: integer
+            minimum: 1
+          example: [101, 102]
+        codes:
+          type: array
+          description: 新建卡密明文（顺序与 ids 对应）
+          items:
+            type: string
+          example:
+            - DEFAULT-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345
+            - DEFAULT-ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
+
+    UpdateCardStatusRequest:
+      type: object
+      required: [ids, target_status]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items: { type: integer, minimum: 1 }
+        target_status:
+          $ref: '#/components/schemas/CardStatus'
+
+    DownloadCardsRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items: { type: integer, minimum: 1 }
+        mark_pending:
+          type: boolean
+          default: false
+          description: 下载后标为 pending
+
+    UpdateFileStatusRequest:
+      type: object
+      required: [ids, target_status]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items: { type: integer, minimum: 1 }
+        target_status:
+          $ref: '#/components/schemas/FileStatus'
+
+    DownloadFilesRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items: { type: integer, minimum: 1 }
+        mark_sold:
+          type: boolean
+          default: false
+
+    UploadFilesResponse:
+      type: object
+      required: [ok, message, imported, created, duplicated]
+      properties:
+        ok: { type: boolean, const: true }
+        message: { type: string }
+        imported: { type: integer, description: 同 created }
+        created: { type: integer, description: 新增数 }
+        duplicated: { type: integer, description: 重复覆盖数 }
+
+    RedemptionItem:
+      type: object
+      properties:
+        id: { type: integer }
+        redeemed_at: { type: string }
+        output_format: { type: string, example: CPA 文件 }
+        file_count: { type: integer }
+        status: { type: string, example: completed }
+
+    CardRedemptionsResponse:
+      type: object
+      required: [card_code, redemptions]
+      properties:
+        card_code: { type: string }
+        first_used_at: { type: string }
+        redemptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RedemptionItem'

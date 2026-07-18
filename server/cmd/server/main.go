@@ -51,7 +51,7 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:18743", "http://localhost:18743"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-Requested-With"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-Requested-With", "X-Admin-Password", "Authorization"},
 		AllowCredentials: true,
 	}))
 
@@ -64,7 +64,7 @@ func main() {
 		api.GET("/auth/me", authH.Me)
 
 		admin := api.Group("/admin")
-		admin.Use(middleware.RequireAuth(sessions))
+		admin.Use(middleware.RequireAuth(sessions, cfg.AdminPassword))
 		{
 			admin.GET("/dashboard", dashH.Stats)
 			admin.POST("/clear", spaceH.ClearCurrent)
@@ -91,10 +91,21 @@ func main() {
 	staticDir := cfg.StaticDir
 	if info, err := os.Stat(staticDir); err == nil && info.IsDir() {
 		r.Static("/assets", filepath.Join(staticDir, "assets"))
+		r.StaticFile("/favicon.svg", filepath.Join(staticDir, "favicon.svg"))
+		r.Static("/favicons", filepath.Join(staticDir, "favicons"))
 		r.NoRoute(func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
 				c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "not found"})
 				return
+			}
+			// Prefer real static files under dist before SPA fallback.
+			rel := strings.TrimPrefix(c.Request.URL.Path, "/")
+			if rel != "" && !strings.Contains(rel, "..") {
+				candidate := filepath.Join(staticDir, rel)
+				if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
+					c.File(candidate)
+					return
+				}
 			}
 			c.File(filepath.Join(staticDir, "index.html"))
 		})

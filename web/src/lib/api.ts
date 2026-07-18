@@ -98,7 +98,10 @@ export const api = {
   cards: (params: URLSearchParams) =>
     request<{ ok: boolean; cards: Card[]; pagination: Pagination; current_space: Space }>(`/api/admin/cards?${params}`),
   createCards: (file_count: number, quantity: number) =>
-    request('/api/admin/cards', { method: 'POST', body: JSON.stringify({ file_count, quantity }) }),
+    request<{ ok: boolean; message: string; count: number; ids: number[]; codes: string[] }>(
+      '/api/admin/cards',
+      { method: 'POST', body: JSON.stringify({ file_count, quantity }) },
+    ),
   updateCardStatus: (ids: number[], target_status: string) =>
     request('/api/admin/cards/status', { method: 'POST', body: JSON.stringify({ ids, target_status }) }),
   downloadCards: async (ids: number[], mark_pending: boolean) => {

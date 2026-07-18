@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Favicon 候选预览 · 25 套</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #120f17;
+        color: #f4f4f5;
+        padding: 32px 20px 48px;
+      }
+      h1 { margin: 0 0 8px; font-size: 1.5rem; }
+      p { margin: 0 0 28px; color: #a1a1aa; }
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        max-width: 1280px;
+      }
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        background: #17171a;
+        padding: 14px;
+      }
+      .name { font-weight: 700; margin-bottom: 4px; font-size: .95rem; }
+      .desc { color: #a1a1aa; font-size: 0.78rem; margin-bottom: 12px; min-height: 2.5em; }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .chip {
+        display: grid; place-items: center; border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08); background: #0b0b0d;
+      }
+      .chip.lg { width: 56px; height: 56px; }
+      .chip.md { width: 32px; height: 32px; }
+      .chip.sm { width: 16px; height: 16px; }
+      .chip img { width: 100%; height: 100%; display: block; }
+      .path {
+        margin-top: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.68rem;
+        color: #c4b5fd;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Favicon 候选 · 共 25 套</h1>
+    <p>回复编号（如 <b>01</b> / <b>14</b>）即可设为项目 favicon。大/中/小尺寸已并排预览。</p>
+    <div class="grid" id="grid"></div>
+    <script>
+      const items = [
+        { file: '01-key.svg', name: '01 · Key', desc: '钥匙，呼应 key. 域名与卡密' },
+        { file: '02-k-mark.svg', name: '02 · K Mark', desc: '字母 K，简洁品牌标' },
+        { file: '03-card-extract.svg', name: '03 · Card Extract', desc: '卡片 + 提取箭头' },
+        { file: '04-hex-w.svg', name: '04 · Hex W', desc: '六边形 + W（Whistlelads）' },
+        { file: '05-orbit-plus.svg', name: '05 · Orbit Plus', desc: '轨道 / Plus 几何' },
+        { file: '06-keyhole.svg', name: '06 · Keyhole', desc: '锁孔，权限/兑换感' },
+        { file: '07-ticket.svg', name: '07 · Ticket', desc: '票券，卡密兑换票' },
+        { file: '08-shield-k.svg', name: '08 · Shield K', desc: '盾牌 + K，安全后台感' },
+        { file: '09-spark-key.svg', name: '09 · Spark Key', desc: '钥匙 + 星芒高光' },
+        { file: '10-mono-f.svg', name: '10 · Mono F', desc: '字母 F（Faka）极简' },
+        { file: '11-stack-cards.svg', name: '11 · Stack Cards', desc: '叠卡，库存/批量' },
+        { file: '12-diamond-k.svg', name: '12 · Diamond K', desc: '菱形 + K，高级感' },
+        { file: '13-bolt-circle.svg', name: '13 · Bolt', desc: '闪电，一键提取速度' },
+        { file: '14-portal-arrow.svg', name: '14 · Portal', desc: '方框门户 + 下载箭头' },
+        { file: '15-chip.svg', name: '15 · Chip', desc: '芯片，API/账号数据' },
+        { file: '16-lock-open.svg', name: '16 · Unlock', desc: '开锁，兑换解锁' },
+        { file: '17-wave-dot.svg', name: '17 · Wave Dot', desc: '波形 + 点，首页点阵呼应' },
+        { file: '18-tri-mark.svg', name: '18 · Triangle', desc: '三角徽章，极简几何' },
+        { file: '19-qr-hint.svg', name: '19 · QR Hint', desc: '码块，序列/码感' },
+        { file: '20-ring-k.svg', name: '20 · Ring K', desc: '圆环 + K' },
+        { file: '21-node-link.svg', name: '21 · Nodes', desc: '节点链路，分发/网络' },
+        { file: '22-book-code.svg', name: '22 · Book', desc: '本子/码本，卡密账本' },
+        { file: '23-star-key.svg', name: '23 · Star', desc: '五角星，醒目标签栏' },
+        { file: '24-slash-k.svg', name: '24 · Slash K', desc: '斜切 + K，潮流标' },
+        { file: '25-cube.svg', name: '25 · Cube', desc: '立方体，空间/Space' },
+      ]
+      const grid = document.getElementById('grid')
+      for (const item of items) {
+        const card = document.createElement('div')
+        card.className = 'card'
+        card.innerHTML = `
+          <div class="name">${item.name}</div>
+          <div class="desc">${item.desc}</div>
+          <div class="row">
+            <div class="chip lg"><img src="./${item.file}" alt="" /></div>
+            <div class="chip md"><img src="./${item.file}" alt="" /></div>
+            <div class="chip sm"><img src="./${item.file}" alt="" /></div>
+          </div>
+          <div class="path">${item.file}</div>
+        `
+        grid.appendChild(card)
+      }
+    </script>
+  </body>
+</html>

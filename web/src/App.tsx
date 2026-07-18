@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { DocumentTitle } from '@/components/DocumentTitle'
 import { AdminLayout } from '@/layouts/AdminLayout'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -11,6 +12,7 @@ import { UploadsPage } from '@/pages/UploadsPage'
 export default function App() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/admin/login" element={<LoginPage />} />
