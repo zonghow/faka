@@ -91,8 +91,18 @@ func main() {
 	staticDir := cfg.StaticDir
 	if info, err := os.Stat(staticDir); err == nil && info.IsDir() {
 		r.Static("/assets", filepath.Join(staticDir, "assets"))
-		r.StaticFile("/favicon.svg", filepath.Join(staticDir, "favicon.svg"))
 		r.Static("/favicons", filepath.Join(staticDir, "favicons"))
+		serveStaticFile := func(urlPath, filePath string) {
+			r.GET(urlPath, func(c *gin.Context) {
+				c.Header("Cache-Control", "public, max-age=86400")
+				c.File(filePath)
+			})
+			r.HEAD(urlPath, func(c *gin.Context) {
+				c.Header("Cache-Control", "public, max-age=86400")
+				c.File(filePath)
+			})
+		}
+		serveStaticFile("/favicon.svg", filepath.Join(staticDir, "favicon.svg"))
 		r.NoRoute(func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
 				c.JSON(http.StatusNotFound, gin.H{"ok": false, "error": "not found"})
@@ -103,10 +113,16 @@ func main() {
 			if rel != "" && !strings.Contains(rel, "..") {
 				candidate := filepath.Join(staticDir, rel)
 				if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
+					if strings.HasSuffix(strings.ToLower(rel), ".svg") {
+						c.Header("Content-Type", "image/svg+xml")
+						c.Header("Cache-Control", "public, max-age=86400")
+					}
 					c.File(candidate)
 					return
 				}
 			}
+			// Avoid caching SPA HTML as static assets at CDNs.
+			c.Header("Cache-Control", "no-store")
 			c.File(filepath.Join(staticDir, "index.html"))
 		})
 	}
