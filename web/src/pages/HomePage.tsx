@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, downloadBlob } from '@/lib/api'
 import { Button, Textarea, Toast } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { DarkVeil } from '@/components/bits/DarkVeil'
-import { FuzzyText } from '@/components/bits/FuzzyText'
-import { GradientText } from '@/components/bits/GradientText'
+import { ShinyText } from '@/components/bits/ShinyText'
 import { ElectricBorder } from '@/components/bits/ElectricBorder'
 import { ClickSpark } from '@/components/bits/ClickSpark'
 import { BorderGlow } from '@/components/bits/BorderGlow'
@@ -43,20 +42,11 @@ export function HomePage() {
     return () => window.clearInterval(t)
   }, [])
 
-  const cardPlaceholder = useMemo(() => {
-    const sample = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-    const prefixes =
-      spaces.length > 0
-        ? spaces.map((s) => (s.card_prefix || 'DEFAULT').toUpperCase())
-        : ['DEFAULT']
-    return Array.from({ length: 3 }, (_, i) => `${prefixes[i % prefixes.length]}-${sample}`).join('\n')
-  }, [spaces])
-
   return (
     <ClickSpark sparkColor="#FFFFFF" sparkSize={12} sparkRadius={18} sparkCount={10} duration={450} className="min-h-screen">
       <div className="relative min-h-screen overflow-hidden bg-[#120F17]">
       <div className="pointer-events-none absolute inset-0">
-        <DarkVeil hueShift={28} noiseIntensity={0.035} scanlineIntensity={0.06} scanlineFrequency={2.2} speed={2} warpAmount={0.18} />
+        <DarkVeil hueShift={35} noiseIntensity={0.035} scanlineIntensity={0.06} scanlineFrequency={2.2} speed={2} warpAmount={0.18} />
       </div>
       {toast ? <Toast message={toast.message} type={toast.type} /> : null}
 
@@ -64,30 +54,25 @@ export function HomePage() {
         <header className="mb-8 text-center">
           <div className="mb-3 text-xs tracking-[0.35em] text-[#a1a1aa] uppercase">redeem portal</div>
           <div className="flex justify-center">
-            <FuzzyText
-               fontSize="clamp(2.5rem, 10vw, 5rem)"
-              fontWeight={900}
-              color="#ffffff"
-              enableHover
-              baseIntensity={0.18}
-              hoverIntensity={0.55}
-              fuzzRange={28}
-               gradient={['#ffffff', '#e4e4e7', '#a1a1aa']}
-            >
-              whistlelads
-            </FuzzyText>
+             <ShinyText
+               text="whistlelads"
+               speed={0.75}
+               color="#6B7280"
+               shineColor="#FFFFFF"
+               spread={90}
+               direction="left"
+               yoyo
+               delay={0.1}
+               className="text-[clamp(2.5rem,10vw,5rem)] font-black tracking-tight"
+             />
           </div>
-          <div className="mt-4 text-base md:text-lg">
-            <GradientText text="输入卡密，一键提取" tone="white" className="font-semibold" />
-          </div>
-        </header>
-
-        <div className="mb-5 px-1">
-          {spaces.length > 0 ? (
-            <div className="mx-auto flex flex-wrap items-baseline justify-center gap-x-4 gap-y-1">
-              {spaces.map((space) => (
-                <div key={space.id} className="flex items-baseline gap-1.5 text-sm">
-                  <span className="text-white/70">{space.name}</span>
+            <div className="mt-4 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-2 px-1 text-base md:text-lg">
+              <span className="text-sm text-white/55">库存</span>
+              {spaces.length > 0 ? (
+               <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-sm">
+               {spaces.map((space) => (
+                 <div key={space.id} className="flex items-baseline gap-1.5 text-sm">
+                   <span className="text-white/70">{space.name}</span>
                   <CountUp
                     to={space.inventory}
                     from={0}
@@ -95,13 +80,14 @@ export function HomePage() {
                     separator=","
                     className="tabular-nums text-lg font-semibold text-white"
                   />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-sm text-white/40">暂无空间</div>
-          )}
-        </div>
+                 </div>
+               ))}
+               </div>
+             ) : (
+               <span className="text-sm text-white/40">暂无空间</span>
+             )}
+           </div>
+         </header>
 
         <BorderGlow
           backgroundColor="#121214"
@@ -136,7 +122,7 @@ export function HomePage() {
                 id="cardCode"
                 value={cardCode}
                 onChange={(e) => setCardCode(e.target.value.toUpperCase().replace(/[^A-Z0-9\-\s,，;；]/g, ''))}
-                placeholder={cardPlaceholder}
+                 placeholder="输入卡密，一键提取"
                 required
                 className={fieldClass}
               />
@@ -161,7 +147,7 @@ export function HomePage() {
                   </Button>
                 )
                 return active ? (
-                  <ElectricBorder key={f} color="#E9D5FF" speed={1} chaos={0.05} borderRadius={16} className="w-full">
+                   <ElectricBorder key={f} color="#E9D5FF" speed={1} chaos={0.02} borderRadius={16} className="w-full">
                     {btn}
                   </ElectricBorder>
                 ) : (
@@ -170,7 +156,7 @@ export function HomePage() {
               })}
             </div>
 
-            <ElectricBorder color="#E9D5FF" speed={1} chaos={0.05} borderRadius={16} className="w-full">
+             <ElectricBorder color="#E9D5FF" speed={1} chaos={0.02} borderRadius={16} className="w-full">
               <Button
                 type="submit"
                 loading={loading}
