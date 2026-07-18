@@ -3,7 +3,7 @@ import { api, downloadBlob } from '@/lib/api'
 import { Button, Textarea, Toast } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
-import { DotField } from '@/components/bits/DotField'
+import { DarkVeil } from '@/components/bits/DarkVeil'
 import { FuzzyText } from '@/components/bits/FuzzyText'
 import { GradientText } from '@/components/bits/GradientText'
 import { ElectricBorder } from '@/components/bits/ElectricBorder'
@@ -55,17 +55,9 @@ export function HomePage() {
   return (
     <ClickSpark sparkColor="#FFFFFF" sparkSize={12} sparkRadius={18} sparkCount={10} duration={450} className="min-h-screen">
       <div className="relative min-h-screen overflow-hidden bg-[#120F17]">
-      <DotField
-        backgroundColor="#120F17"
-        gradientFrom="rgba(168, 85, 247, 0.35)"
-        gradientTo="rgba(180, 151, 207, 0.25)"
-        glowColor="#120F17"
-        dotRadius={1.5}
-        dotSpacing={14}
-        bulgeStrength={67}
-        glowRadius={160}
-        waveAmplitude={0}
-      />
+      <div className="pointer-events-none absolute inset-0">
+        <DarkVeil hueShift={28} noiseIntensity={0.035} scanlineIntensity={0.06} scanlineFrequency={2.2} speed={2} warpAmount={0.18} />
+      </div>
       {toast ? <Toast message={toast.message} type={toast.type} /> : null}
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
@@ -73,20 +65,20 @@ export function HomePage() {
           <div className="mb-3 text-xs tracking-[0.35em] text-[#a1a1aa] uppercase">redeem portal</div>
           <div className="flex justify-center">
             <FuzzyText
-              fontSize="clamp(2rem, 7vw, 3.5rem)"
+               fontSize="clamp(2.5rem, 10vw, 5rem)"
               fontWeight={900}
               color="#ffffff"
               enableHover
               baseIntensity={0.18}
               hoverIntensity={0.55}
               fuzzRange={28}
-              gradient={['#A855F7', '#B497CF', '#ffffff']}
+               gradient={['#ffffff', '#e4e4e7', '#a1a1aa']}
             >
               whistlelads
             </FuzzyText>
           </div>
           <div className="mt-4 text-base md:text-lg">
-            <GradientText text="输入卡密，一键提取" className="font-semibold" />
+            <GradientText text="输入卡密，一键提取" tone="white" className="font-semibold" />
           </div>
         </header>
 
@@ -115,11 +107,11 @@ export function HomePage() {
           backgroundColor="#121214"
           borderRadius={28}
           edgeSensitivity={20}
-          glowColor="270 80 80"
+          glowColor="0 0 96"
           glowRadius={40}
           glowIntensity={1.1}
           coneSpread={28}
-          colors={['#A855F7', '#C4B5FD', '#E9D5FF']}
+          colors={['#FFFFFF', '#E4E4E7', '#A1A1AA']}
           fillOpacity={0.35}
         >
           <form
