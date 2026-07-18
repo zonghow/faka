@@ -14,6 +14,9 @@ import (
 
 const spaceCookie = "tikawang_space_id"
 
+// displayLocation is fixed UTC+8 for all user-facing timestamps.
+var displayLocation = time.FixedZone("UTC+8", 8*60*60)
+
 func ok(c *gin.Context, data gin.H) {
 	if data == nil {
 		data = gin.H{}
@@ -38,14 +41,30 @@ func formatTime(t *time.Time) string {
 	if t == nil {
 		return ""
 	}
-	return t.UTC().Format("2006-01-02 15:04:05")
+	return t.In(displayLocation).Format("2006-01-02 15:04:05")
 }
 
 func formatTimeVal(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.UTC().Format("2006-01-02 15:04:05")
+	return t.In(displayLocation).Format("2006-01-02 15:04:05")
+}
+
+// parseDateStart parses YYYY-MM-DD as 00:00:00 in UTC+8 and returns the UTC instant.
+func parseDateStart(s string) (time.Time, bool) {
+	t, err := time.ParseInLocation("2006-01-02", s, displayLocation)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t.UTC(), true
+}
+
+// dayBoundsUTC8 returns [todayStart, tomorrowStart) as UTC instants for the current UTC+8 calendar day.
+func dayBoundsUTC8(now time.Time) (todayStart, tomorrowStart time.Time) {
+	local := now.In(displayLocation)
+	startLocal := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, displayLocation)
+	return startLocal.UTC(), startLocal.Add(24 * time.Hour).UTC()
 }
 
 func resolveSpace(c *gin.Context, db *gorm.DB) (*models.Space, error) {

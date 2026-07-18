@@ -19,8 +19,9 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 		serviceFail(c, err)
 		return
 	}
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	yesterday := today.Add(-24 * time.Hour)
+	// Day buckets use UTC+8 calendar days.
+	todayStart, tomorrowStart := dayBoundsUTC8(time.Now().UTC())
+	yesterdayStart := todayStart.Add(-24 * time.Hour)
 
 	countWhere := func(extra string, args ...any) int64 {
 		q := h.DB.Model(&models.ManagedFile{}).Where("space_id = ?", space.ID)
@@ -36,11 +37,11 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 		"current_space": space,
 		"stats": gin.H{
 			"总上传文件数": countWhere(""),
-			"昨日上传文件数": countWhere("uploaded_at >= ? AND uploaded_at < ?", yesterday, today),
-			"今日上传文件数": countWhere("uploaded_at >= ?", today),
+			"昨日上传文件数": countWhere("uploaded_at >= ? AND uploaded_at < ?", yesterdayStart, todayStart),
+			"今日上传文件数": countWhere("uploaded_at >= ? AND uploaded_at < ?", todayStart, tomorrowStart),
 			"总售出文件数":  countWhere("status = ?", "sold"),
-			"昨日售出文件数": countWhere("sold_at >= ? AND sold_at < ?", yesterday, today),
-			"今日售出文件数": countWhere("sold_at >= ?", today),
+			"昨日售出文件数": countWhere("sold_at >= ? AND sold_at < ?", yesterdayStart, todayStart),
+			"今日售出文件数": countWhere("sold_at >= ? AND sold_at < ?", todayStart, tomorrowStart),
 		},
 	})
 }

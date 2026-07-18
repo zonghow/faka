@@ -45,12 +45,12 @@ func (h *FileHandler) List(c *gin.Context) {
 		q = q.Where("status = ?", s)
 	}
 	if start := c.Query("start"); start != "" {
-		if t, err := time.Parse("2006-01-02", start); err == nil {
+		if t, ok := parseDateStart(start); ok {
 			q = q.Where("uploaded_at >= ?", t)
 		}
 	}
 	if end := c.Query("end"); end != "" {
-		if t, err := time.Parse("2006-01-02", end); err == nil {
+		if t, ok := parseDateStart(end); ok {
 			q = q.Where("uploaded_at < ?", t.Add(24*time.Hour))
 		}
 	}
