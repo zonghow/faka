@@ -6,14 +6,16 @@ import { useToast } from '@/hooks/useToast'
 import { DotField } from '@/components/bits/DotField'
 import { FuzzyText } from '@/components/bits/FuzzyText'
 import { GradientText } from '@/components/bits/GradientText'
-import { GlowCard } from '@/components/bits/GlowCard'
+import { ElectricBorder } from '@/components/bits/ElectricBorder'
+import { ClickSpark } from '@/components/bits/ClickSpark'
+import { BorderGlow } from '@/components/bits/BorderGlow'
 import { CountUp } from '@/components/bits/CountUp'
 
 const fieldClass =
-  'min-h-48 resize-none rounded-2xl border border-white/[0.08] bg-[#0b0b0d] px-4 py-3 text-sm text-white/90 shadow-none placeholder:text-white/35 transition-colors focus-visible:border-[#a78bfa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]/45'
+  'min-h-48 resize-none rounded-2xl border border-white/[0.08] bg-[#0b0b0d] px-4 py-3 text-sm text-white/90 shadow-none placeholder:text-white/35 transition-colors focus-visible:border-white/[0.08] focus-visible:outline-none focus-visible:ring-0'
 
 const softBtnClass =
-  'h-12 w-full rounded-2xl border border-white/[0.08] bg-[#17171a] text-sm font-medium text-white/55 shadow-none transition-colors hover:bg-[#1d1d22] hover:text-white/75'
+  'h-12 w-full cursor-pointer rounded-2xl border border-white/[0.08] bg-[#17171a] text-sm font-medium text-white/55 shadow-none transition-colors hover:bg-[#1d1d22] hover:text-white/75'
 
 type SpaceInventoryItem = {
   id: number
@@ -51,7 +53,8 @@ export function HomePage() {
   }, [spaces])
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#120F17]">
+    <ClickSpark sparkColor="#FFFFFF" sparkSize={12} sparkRadius={18} sparkCount={10} duration={450} className="min-h-screen">
+      <div className="relative min-h-screen overflow-hidden bg-[#120F17]">
       <DotField
         backgroundColor="#120F17"
         gradientFrom="rgba(168, 85, 247, 0.35)"
@@ -79,7 +82,7 @@ export function HomePage() {
               fuzzRange={28}
               gradient={['#A855F7', '#B497CF', '#ffffff']}
             >
-              whistlelads faka
+              whistlelads
             </FuzzyText>
           </div>
           <div className="mt-4 text-base md:text-lg">
@@ -108,9 +111,19 @@ export function HomePage() {
           )}
         </div>
 
-        <GlowCard>
+        <BorderGlow
+          backgroundColor="#121214"
+          borderRadius={28}
+          edgeSensitivity={20}
+          glowColor="270 80 80"
+          glowRadius={40}
+          glowIntensity={1.1}
+          coneSpread={28}
+          colors={['#A855F7', '#C4B5FD', '#E9D5FF']}
+          fillOpacity={0.35}
+        >
           <form
-            className="space-y-6"
+            className="space-y-6 p-6"
             onSubmit={async (e) => {
               e.preventDefault()
               setLoading(true)
@@ -140,29 +153,44 @@ export function HomePage() {
             <div className="grid grid-cols-2 gap-3">
               {(['cpa', 'sub'] as const).map((f) => {
                 const active = format === f
-                return (
+                const btn = (
                   <Button
-                    key={f}
                     type="button"
                     variant="outline"
                     onClick={() => setFormat(f)}
                     className={cn(
                       softBtnClass,
-                      active && 'border-[#a78bfa]/70 bg-[#1a1a1f] text-white ring-2 ring-[#a78bfa]/40 hover:bg-[#1a1a1f] hover:text-white',
+                      active
+                        ? 'border-transparent bg-[#1a1a1f] text-white hover:bg-[#1a1a1f] hover:text-white'
+                        : 'text-white/55',
                     )}
                   >
                     {f === 'cpa' ? 'CPA 格式' : 'SUB 格式'}
                   </Button>
                 )
+                return active ? (
+                  <ElectricBorder key={f} color="#E9D5FF" speed={1} chaos={0.05} borderRadius={16} className="w-full">
+                    {btn}
+                  </ElectricBorder>
+                ) : (
+                  <div key={f}>{btn}</div>
+                )
               })}
             </div>
 
-            <Button type="submit" loading={loading} className={cn(softBtnClass, 'text-white/70 hover:text-white/85')}>
-              {loading ? '处理中...' : '提取'}
-            </Button>
+            <ElectricBorder color="#E9D5FF" speed={1} chaos={0.05} borderRadius={16} className="w-full">
+              <Button
+                type="submit"
+                loading={loading}
+                className={cn(softBtnClass, 'border-transparent text-white/70 hover:text-white/85')}
+              >
+                {loading ? '处理中...' : '提取'}
+              </Button>
+            </ElectricBorder>
           </form>
-        </GlowCard>
+        </BorderGlow>
       </div>
-    </div>
+      </div>
+    </ClickSpark>
   )
 }
