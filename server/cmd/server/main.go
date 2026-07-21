@@ -48,12 +48,17 @@ func main() {
 	r := gin.Default()
 	// Keep most of large uploads on disk temp files; total size is enforced in handler (500MB).
 	r.MaxMultipartMemory = 64 << 20
-	r.Use(cors.New(cors.Config{
+	corsConfig := cors.Config{
 		AllowOrigins:     []string{"http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:18743", "http://localhost:18743"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "X-Requested-With", "X-Admin-Password", "Authorization"},
 		AllowCredentials: true,
-	}))
+	}
+	if !cfg.AuthRequired {
+		corsConfig.AllowOrigins = nil
+		corsConfig.AllowOriginFunc = func(string) bool { return true }
+	}
+	r.Use(cors.New(corsConfig))
 
 	api := r.Group("/api")
 	{
