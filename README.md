@@ -18,8 +18,8 @@
 
 ```bash
 export PATH=/usr/local/go/bin:$PATH
+export TIKAWANG_ENV=development
 export TIKAWANG_SESSION_SECRET=local-dev-secret-change-me
-export TIKAWANG_AUTH_PASSWORD=Wgs0405java
 export TIKAWANG_BASE_DIR=/path/to/faka
 cd /path/to/faka
 go -C server build -o bin/faka-server ./cmd/server
@@ -57,6 +57,7 @@ bash deploy/deploy.sh
 
 | 变量 | 说明 | 默认 |
 |------|------|------|
+| `TIKAWANG_ENV` | 运行环境；`development` 时后台免密码 | `production` |
 | `TIKAWANG_AUTH_PASSWORD` | 后台密码 | 开发默认，生产必改 |
 | `TIKAWANG_SESSION_SECRET` | Session 签名密钥 | 开发默认，生产必改 |
 | `TIKAWANG_ADDR` | 监听地址 | `0.0.0.0:18743` |

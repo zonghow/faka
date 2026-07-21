@@ -42,7 +42,7 @@ export function FilesPage() {
   const [cardCode, setCardCode] = useState('')
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState('200')
+  const [pageSize, setPageSize] = useState('5000')
   const [targetStatus, setTargetStatus] = useState('available')
   const [loading, setLoading] = useState(true)
   const [filtering, setFiltering] = useState(false)

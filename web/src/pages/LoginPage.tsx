@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { Button, Card, CardContent, Input, Label, Toast } from '@/components/ui'
@@ -9,6 +9,12 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { toast, show } = useToast()
+
+  useEffect(() => {
+    api.me().then((res) => {
+      if (res.authenticated) navigate('/admin', { replace: true })
+    }).catch(() => undefined)
+  }, [navigate])
 
   return (
     <div className="grid min-h-screen place-items-center px-4">

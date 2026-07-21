@@ -38,6 +38,30 @@ function statusVariant(status: string): 'default' | 'success' | 'warn' | 'danger
   return 'default'
 }
 
+async function copyText(text: string) {
+  let textarea: HTMLTextAreaElement | null = null
+  try {
+    if (window.isSecureContext && navigator.clipboard) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+
+    textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.readOnly = true
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    textarea.setSelectionRange(0, text.length)
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    textarea?.remove()
+  }
+}
+
 export function CardsPage() {
   const [cards, setCards] = useState<Card[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -45,7 +69,7 @@ export function CardsPage() {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState('200')
+  const [pageSize, setPageSize] = useState('5000')
   const [targetStatus, setTargetStatus] = useState('pending')
   const [fileCount, setFileCount] = useState(1)
   const [quantity, setQuantity] = useState(1)
@@ -188,17 +212,23 @@ export function CardsPage() {
             disabled={!selected.length}
             loading={downloading}
             onClick={async () => {
+              const selectedIds = new Set(selected)
+              const selectedCodes = cards
+                .filter((card) => selectedIds.has(card.id) && card.status === 'available')
+                .sort((a, b) => a.id - b.id)
+                .map((card) => card.code)
               const mark = await confirm({
                 title: '下载卡密',
                 description: '下载后是否将选中卡密标记为「待使用」？',
                 confirmText: '标记并下载',
                 cancelText: '仅下载',
               })
+              const copied = mark && selectedCodes.length > 0 ? await copyText(selectedCodes.join('\n')) : false
               setDownloading(true)
               try {
                 const { blob, filename } = await api.downloadCards(selected, mark)
                 downloadBlob(blob, filename)
-                show('下载已开始', 'success')
+                show(mark ? (copied ? '下载已开始，卡密已复制' : '下载已开始，但卡密复制失败') : '下载已开始', copied || !mark ? 'success' : 'error')
                 await load()
               } catch (e) {
                 show(e instanceof Error ? e.message : '下载失败')

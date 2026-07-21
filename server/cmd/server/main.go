@@ -38,7 +38,7 @@ func main() {
 	}
 
 	sessions := auth.NewManager(cfg.SessionSecret)
-	authH := &handlers.AuthHandler{Sessions: sessions, Password: cfg.AdminPassword}
+	authH := &handlers.AuthHandler{Sessions: sessions, Password: cfg.AdminPassword, AuthRequired: cfg.AuthRequired}
 	publicH := &handlers.PublicHandler{DB: database, Cfg: cfg}
 	spaceH := &handlers.SpaceHandler{DB: database}
 	cardH := &handlers.CardHandler{DB: database, Cfg: cfg}
@@ -64,7 +64,7 @@ func main() {
 		api.GET("/auth/me", authH.Me)
 
 		admin := api.Group("/admin")
-		admin.Use(middleware.RequireAuth(sessions, cfg.AdminPassword))
+		admin.Use(middleware.RequireAuth(sessions, cfg.AdminPassword, cfg.AuthRequired))
 		{
 			admin.GET("/dashboard", dashH.Stats)
 			admin.POST("/clear", spaceH.ClearCurrent)

@@ -6,6 +6,7 @@ services:
     env_file:
       - .env
     environment:
+      TIKAWANG_ENV: production
       TIKAWANG_BASE_DIR: /app
       TIKAWANG_ADDR: 0.0.0.0:18743
       TIKAWANG_STATIC_DIR: /app/web/dist

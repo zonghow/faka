@@ -10,21 +10,24 @@ import (
 )
 
 type AuthHandler struct {
-	Sessions *auth.Manager
-	Password string
+	Sessions     *auth.Manager
+	Password     string
+	AuthRequired bool
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil || body.Password == "" {
-		// also accept form
-		body.Password = c.PostForm("password")
-	}
-	if body.Password == "" || body.Password != h.Password {
-		fail(c, http.StatusUnauthorized, "密码错误")
-		return
+	if h.AuthRequired {
+		if err := c.ShouldBindJSON(&body); err != nil || body.Password == "" {
+			// also accept form
+			body.Password = c.PostForm("password")
+		}
+		if body.Password == "" || body.Password != h.Password {
+			fail(c, http.StatusUnauthorized, "密码错误")
+			return
+		}
 	}
 	cookie, err := h.Sessions.CreateCookie(true, 30*24*time.Hour)
 	if err != nil {
@@ -41,5 +44,5 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	ok(c, gin.H{"authenticated": h.Sessions.Parse(c.Request)})
+	ok(c, gin.H{"authenticated": !h.AuthRequired || h.Sessions.Parse(c.Request)})
 }

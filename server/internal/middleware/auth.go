@@ -14,8 +14,12 @@ import (
 //   - X-Admin-Password: <password>
 //   - Authorization: Bearer <password>
 //   - Authorization: Password <password>
-func RequireAuth(m *auth.Manager, adminPassword string) gin.HandlerFunc {
+func RequireAuth(m *auth.Manager, adminPassword string, authRequired bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !authRequired {
+			c.Next()
+			return
+		}
 		if m.Parse(c.Request) {
 			c.Next()
 			return
