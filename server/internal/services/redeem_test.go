@@ -1,6 +1,7 @@
 package services
 
 import (
+	"archive/zip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -99,6 +100,44 @@ func TestCreateCardsAndRedeemCPA(t *testing.T) {
 	db.Model(&models.ManagedFile{}).Where("status = ?", "sold").Count(&sold)
 	if sold != 2 {
 		t.Fatalf("sold files=%d", sold)
+	}
+}
+
+func TestWriteZipFromPicksFlattensMultipleCards(t *testing.T) {
+	dir := t.TempDir()
+	firstPath := filepath.Join(dir, "first.json")
+	secondPath := filepath.Join(dir, "second.json")
+	if err := writeFile(firstPath, []byte(`{"account":"first"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFile(secondPath, []byte(`{"account":"second"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	cards := []models.Card{{ID: 1, Code: "TEST-FIRST"}, {ID: 2, Code: "TEST-SECOND"}}
+	picks := map[uint][]models.ManagedFile{
+		1: {{ID: 1, OriginalName: "account.json", StoredPath: firstPath}},
+		2: {{ID: 2, OriginalName: "account.json", StoredPath: secondPath}},
+	}
+	out := filepath.Join(dir, "accounts.zip")
+	if err := writeZipFromPicks(out, cards, picks); err != nil {
+		t.Fatal(err)
+	}
+
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+
+	want := []string{"account.json", "2_account.json"}
+	if len(zr.File) != len(want) {
+		t.Fatalf("zip entries=%d, want %d", len(zr.File), len(want))
+	}
+	for i, entry := range zr.File {
+		if entry.Name != want[i] {
+			t.Fatalf("zip entry %d=%q, want %q", i, entry.Name, want[i])
+		}
 	}
 }
 

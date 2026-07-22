@@ -441,9 +441,6 @@ func writeZipFromPicks(path string, cards []models.Card, picks map[uint][]models
 		for _, item := range picks[card.ID] {
 			downloadName := JSONDownloadName(item.OriginalName)
 			arcname := downloadName
-			if len(cards) > 1 {
-				arcname = card.Code + "/" + downloadName
-			}
 			if _, ok := used[arcname]; ok {
 				dir := filepath.Dir(arcname)
 				base := filepath.Base(arcname)
