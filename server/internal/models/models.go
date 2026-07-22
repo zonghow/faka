@@ -30,6 +30,17 @@ type ManagedFile struct {
 
 func (ManagedFile) TableName() string { return "files" }
 
+type UploadRecord struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	SpaceID          uint      `gorm:"index;not null" json:"space_id"`
+	Filename         string    `gorm:"size:255;not null" json:"filename"`
+	CreatedCount     int       `gorm:"not null;default:0" json:"created_count"`
+	OverwrittenCount int       `gorm:"not null;default:0" json:"overwritten_count"`
+	CreatedAt        time.Time `gorm:"index" json:"created_at"`
+}
+
+func (UploadRecord) TableName() string { return "upload_records" }
+
 type Card struct {
 	ID        uint       `gorm:"primaryKey" json:"id"`
 	Code      string     `gorm:"size:128;uniqueIndex;not null" json:"code"`

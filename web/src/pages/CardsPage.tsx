@@ -8,6 +8,8 @@ import {
   Checkbox,
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   Input,
@@ -30,6 +32,8 @@ const statusLabel: Record<string, string> = {
   sold: '已使用',
   voided: '已作废',
 }
+
+const quickCounts = [100, 200, 300, 500, 1000, 2000, 3000]
 
 function statusVariant(status: string): 'default' | 'success' | 'warn' | 'danger' {
   if (status === 'available') return 'success'
@@ -73,10 +77,13 @@ export function CardsPage() {
   const [targetStatus, setTargetStatus] = useState('pending')
   const [fileCount, setFileCount] = useState(1)
   const [quantity, setQuantity] = useState(1)
+  const [generatedBatch, setGeneratedBatch] = useState<{ ids: number[]; codes: string[]; fileCount: number } | null>(null)
   const [usage, setUsage] = useState<{ card_code: string; first_used_at: string; redemptions: Array<Record<string, unknown>> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtering, setFiltering] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [generatedBatchDownloadMode, setGeneratedBatchDownloadMode] = useState<'plain' | 'pending' | null>(null)
+  const [fillingFreeCount, setFillingFreeCount] = useState<'fileCount' | 'quantity' | null>(null)
   const [updating, setUpdating] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null)
@@ -104,6 +111,28 @@ export function CardsPage() {
 
   const allChecked = useMemo(() => cards.length > 0 && selected.length === cards.length, [cards, selected])
   const { parentRef, items: virtualItems, paddingTop, paddingBottom } = useTableVirtualizer(cards.length)
+
+  const fillFreeCount = async (target: 'fileCount' | 'quantity') => {
+    setFillingFreeCount(target)
+    try {
+      const res = await api.dashboard()
+      const freeFiles = Number(res.stats['当前空闲文件数'] || 0)
+      if (freeFiles <= 0) {
+        show('当前没有空闲文件')
+        return
+      }
+      const count = Math.min(freeFiles, 10000)
+      if (target === 'fileCount') setFileCount(count)
+      else setQuantity(count)
+      if (freeFiles > 10000) {
+        show('空闲文件数超过字段上限，已填入 10000', 'success')
+      }
+    } catch (e) {
+      show(e instanceof Error ? e.message : '空闲文件数加载失败')
+    } finally {
+      setFillingFreeCount(null)
+    }
+  }
 
   return (
     <div className="flex h-[calc(100vh-7.5rem)] flex-col">
@@ -148,13 +177,63 @@ export function CardsPage() {
             筛选
           </Button>
           <div className="ml-auto flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
+            <div className="w-64 space-y-1">
               <Label>绑定文件数</Label>
-              <Input className="w-28" type="number" min={1} value={fileCount} onChange={(e) => setFileCount(Number(e.target.value))} />
+              <Input className="w-full" type="number" min={1} max={10000} value={fileCount} onChange={(e) => setFileCount(Number(e.target.value))} />
+              <div className="flex flex-wrap gap-1 pt-1">
+                {quickCounts.map((count) => (
+                  <Button
+                    key={count}
+                    type="button"
+                    size="sm"
+                    variant={fileCount === count ? 'secondary' : 'outline'}
+                    className="h-6 px-2"
+                    onClick={() => setFileCount(count)}
+                  >
+                    {count}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2"
+                  loading={fillingFreeCount === 'fileCount'}
+                  disabled={creating || fillingFreeCount !== null}
+                  onClick={() => fillFreeCount('fileCount')}
+                >
+                  填入空闲数
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1">
+            <div className="w-64 space-y-1">
               <Label>生成数量</Label>
-              <Input className="w-28" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+              <Input className="w-full" type="number" min={1} max={10000} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
+              <div className="flex flex-wrap gap-1 pt-1">
+                {quickCounts.map((count) => (
+                  <Button
+                    key={count}
+                    type="button"
+                    size="sm"
+                    variant={quantity === count ? 'secondary' : 'outline'}
+                    className="h-6 px-2"
+                    onClick={() => setQuantity(count)}
+                  >
+                    {count}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2"
+                  loading={fillingFreeCount === 'quantity'}
+                  disabled={creating || fillingFreeCount !== null}
+                  onClick={() => fillFreeCount('quantity')}
+                >
+                  填入空闲数
+                </Button>
+              </div>
             </div>
             <Button
               loading={creating}
@@ -163,7 +242,8 @@ export function CardsPage() {
                 try {
                   const res = await api.createCards(fileCount, quantity)
                   show((res as { message?: string }).message || '已生成', 'success')
-                  await load()
+                  setGeneratedBatch({ ids: res.ids, codes: res.codes, fileCount })
+                  await load().catch((e) => show(e instanceof Error ? `卡密已生成，但列表刷新失败：${e.message}` : '卡密已生成，但列表刷新失败'))
                 } catch (e) {
                   show(e instanceof Error ? e.message : '生成失败')
                 } finally {
@@ -176,6 +256,89 @@ export function CardsPage() {
           </div>
         </CardContent>
       </UICard>
+
+      <Dialog
+        open={generatedBatch !== null}
+        onOpenChange={(open) => {
+          if (!open && generatedBatchDownloadMode === null) setGeneratedBatch(null)
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(e) => {
+            if (generatedBatchDownloadMode !== null) e.preventDefault()
+          }}
+          onPointerDownOutside={(e) => {
+            if (generatedBatchDownloadMode !== null) e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>下载本次生成的卡密</DialogTitle>
+            <DialogDescription>卡密已生成，可以直接下载这一批，无需筛选和勾选。</DialogDescription>
+          </DialogHeader>
+          {generatedBatch ? (
+            <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-4">
+              <div>
+                <div className="text-xs text-muted-foreground">卡密数量</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{generatedBatch.ids.length}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">文件总数</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{generatedBatch.ids.length * generatedBatch.fileCount}</div>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:space-x-0">
+            <Button type="button" variant="ghost" disabled={generatedBatchDownloadMode !== null} onClick={() => setGeneratedBatch(null)}>
+              暂不下载
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              loading={generatedBatchDownloadMode === 'plain'}
+              disabled={generatedBatchDownloadMode !== null}
+              onClick={async () => {
+                if (!generatedBatch) return
+                setGeneratedBatchDownloadMode('plain')
+                try {
+                  const { blob, filename } = await api.downloadCards(generatedBatch.ids, false)
+                  downloadBlob(blob, filename)
+                  setGeneratedBatch(null)
+                  show('下载已开始', 'success')
+                } catch (e) {
+                  show(e instanceof Error ? e.message : '下载失败')
+                } finally {
+                  setGeneratedBatchDownloadMode(null)
+                }
+              }}
+            >
+              {generatedBatchDownloadMode === 'plain' ? '下载中...' : '仅下载'}
+            </Button>
+            <Button
+              type="button"
+              loading={generatedBatchDownloadMode === 'pending'}
+              disabled={generatedBatchDownloadMode !== null}
+              onClick={async () => {
+                if (!generatedBatch) return
+                setGeneratedBatchDownloadMode('pending')
+                try {
+                  const { blob, filename } = await api.downloadCards(generatedBatch.ids, true)
+                  const copied = await copyText(generatedBatch.codes.join('\n'))
+                  downloadBlob(blob, filename)
+                  setGeneratedBatch(null)
+                  show(copied ? '状态已修改，下载已开始，卡密已复制' : '状态已修改，下载已开始，但卡密复制失败', copied ? 'success' : 'error')
+                  await load()
+                } catch (e) {
+                  show(e instanceof Error ? e.message : '下载失败')
+                } finally {
+                  setGeneratedBatchDownloadMode(null)
+                }
+              }}
+            >
+              {generatedBatchDownloadMode === 'pending' ? '处理中...' : '设为待使用并下载'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <UICard className="mb-4">
         <CardContent className="flex flex-wrap items-center gap-3 p-4">

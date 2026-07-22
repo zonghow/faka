@@ -88,6 +88,37 @@ func (h *FileHandler) List(c *gin.Context) {
 	ok(c, gin.H{"files": items, "pagination": pagination(total, page, size), "current_space": space})
 }
 
+func (h *FileHandler) UploadRecords(c *gin.Context) {
+	space, err := resolveSpace(c, h.DB)
+	if err != nil {
+		serviceFail(c, err)
+		return
+	}
+	page, size := parsePage(c, 50, []int{20, 50, 100, 200})
+	q := h.DB.Model(&models.UploadRecord{}).Where("space_id = ?", space.ID)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		serviceFail(c, err)
+		return
+	}
+	var records []models.UploadRecord
+	if err := q.Order("created_at desc, id desc").Offset((page - 1) * size).Limit(size).Find(&records).Error; err != nil {
+		serviceFail(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(records))
+	for _, record := range records {
+		items = append(items, gin.H{
+			"id":                record.ID,
+			"filename":          record.Filename,
+			"created_count":     record.CreatedCount,
+			"overwritten_count": record.OverwrittenCount,
+			"created_at":        formatTimeVal(record.CreatedAt),
+		})
+	}
+	ok(c, gin.H{"records": items, "pagination": pagination(total, page, size)})
+}
+
 func (h *FileHandler) Upload(c *gin.Context) {
 	space, err := resolveSpace(c, h.DB)
 	if err != nil {
@@ -138,6 +169,19 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		totalCreated += created
 		totalDuplicated += duplicated
 		allErrors = append(allErrors, errs...)
+		if created+duplicated > 0 {
+			record := models.UploadRecord{
+				SpaceID:          space.ID,
+				Filename:         filepath.Base(fh.Filename),
+				CreatedCount:     created,
+				OverwrittenCount: duplicated,
+				CreatedAt:        services.NowUTC(),
+			}
+			if err := h.DB.Create(&record).Error; err != nil {
+				serviceFail(c, err)
+				return
+			}
+		}
 	}
 	totalProcessed := totalCreated + totalDuplicated
 	if totalProcessed == 0 && len(allErrors) > 0 {
@@ -148,7 +192,7 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		fail(c, http.StatusBadRequest, msg)
 		return
 	}
-	msg := "新增 " + strconv.Itoa(totalCreated) + " 个，重复 " + strconv.Itoa(totalDuplicated) + " 个"
+	msg := "新增 " + strconv.Itoa(totalCreated) + " 个，覆盖 " + strconv.Itoa(totalDuplicated) + " 个"
 	if len(allErrors) > 0 {
 		msg += "，部分失败：" + strings.Join(allErrors[:min(3, len(allErrors))], "；")
 	}

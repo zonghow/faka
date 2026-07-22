@@ -116,6 +116,10 @@ func DeleteSpaceData(db *gorm.DB, spaceID uint) (map[string]int, error) {
 	if err := db.Where("space_id = ?", spaceID).Find(&audits).Error; err != nil {
 		return nil, err
 	}
+	var uploadRecordCount int64
+	if err := db.Model(&models.UploadRecord{}).Where("space_id = ?", spaceID).Count(&uploadRecordCount).Error; err != nil {
+		return nil, err
+	}
 	for _, item := range files {
 		_ = removeFile(item.StoredPath)
 		if err := db.Delete(&item).Error; err != nil {
@@ -138,11 +142,15 @@ func DeleteSpaceData(db *gorm.DB, spaceID uint) (map[string]int, error) {
 			return nil, err
 		}
 	}
+	if err := db.Where("space_id = ?", spaceID).Delete(&models.UploadRecord{}).Error; err != nil {
+		return nil, err
+	}
 	return map[string]int{
-		"cards":       len(cards),
-		"files":       len(files),
-		"redemptions": len(redemptions),
-		"audits":      len(audits),
+		"cards":          len(cards),
+		"files":          len(files),
+		"redemptions":    len(redemptions),
+		"audits":         len(audits),
+		"upload_records": int(uploadRecordCount),
 	}, nil
 }
 

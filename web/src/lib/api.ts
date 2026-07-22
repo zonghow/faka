@@ -26,6 +26,14 @@ export type ManagedFile = {
   uploaded_at: string
 }
 
+export type UploadRecord = {
+  id: number
+  filename: string
+  created_count: number
+  overwritten_count: number
+  created_at: string
+}
+
 export type Pagination = {
   page: number
   page_size: number
@@ -123,6 +131,8 @@ export const api = {
     ),
   files: (params: URLSearchParams) =>
     request<{ ok: boolean; files: ManagedFile[]; pagination: Pagination; current_space: Space }>(`/api/admin/files?${params}`),
+  uploadRecords: (page = 1) =>
+    request<{ ok: boolean; records: UploadRecord[]; pagination: Pagination }>(`/api/admin/files/upload-records?page=${page}&page_size=50`),
   uploadFiles: async (files: FileList | File[]) => {
     const form = new FormData()
     Array.from(files).forEach((f) => form.append('file', f))
@@ -156,7 +166,7 @@ export const api = {
           const duplicated = Number(data.duplicated ?? 0)
           resolve({
             ok: true,
-            message: data.message || `新增 ${created} 个，重复 ${duplicated} 个`,
+            message: data.message || `新增 ${created} 个，覆盖 ${duplicated} 个`,
             imported: created,
             created,
             duplicated,

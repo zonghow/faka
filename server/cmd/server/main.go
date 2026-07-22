@@ -86,6 +86,7 @@ func main() {
 			admin.GET("/cards/:id/redemptions", cardH.Redemptions)
 
 			admin.GET("/files", fileH.List)
+			admin.GET("/files/upload-records", fileH.UploadRecords)
 			admin.POST("/files/upload", fileH.Upload)
 			admin.POST("/files/status", fileH.UpdateStatus)
 			admin.POST("/files/download", fileH.Download)

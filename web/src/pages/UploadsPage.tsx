@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
-import { api } from '@/lib/api'
-import { Button, Card, CardContent, PageHeader, Toast } from '@/components/ui'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { api, type Pagination, type UploadRecord } from '@/lib/api'
+import { Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Toast } from '@/components/ui'
 import { useToast } from '@/hooks/useToast'
 import { cn } from '@/lib/utils'
 
@@ -56,8 +56,34 @@ export function UploadsPage() {
   const [items, setItems] = useState<UploadItem[]>([])
   const [loading, setLoading] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [records, setRecords] = useState<UploadRecord[]>([])
+  const [recordsPagination, setRecordsPagination] = useState<Pagination | null>(null)
+  const [recordsPage, setRecordsPage] = useState(1)
+  const [recordsLoading, setRecordsLoading] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const { toast, show } = useToast()
+
+  const loadRecords = async () => {
+    setRecordsLoading(true)
+    try {
+      const res = await api.uploadRecords(recordsPage)
+      setRecords(res.records)
+      setRecordsPagination(res.pagination)
+    } finally {
+      setRecordsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    setRecordsLoading(true)
+    api.uploadRecords(recordsPage)
+      .then((res) => {
+        setRecords(res.records)
+        setRecordsPagination(res.pagination)
+      })
+      .catch((e) => show(e instanceof Error ? e.message : '上传记录加载失败'))
+      .finally(() => setRecordsLoading(false))
+  }, [recordsPage, show])
 
   const totalBytes = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items])
   const oversized = totalBytes > MAX_UPLOAD_BYTES
@@ -106,7 +132,7 @@ export function UploadsPage() {
           updateItem(item.id, {
             status: 'done',
             progress: 100,
-            message: res.message || `新增 ${res.created || 0} 个，重复 ${res.duplicated || 0} 个`,
+            message: res.message || `新增 ${res.created || 0} 个，覆盖 ${res.duplicated || 0} 个`,
           })
         } catch (e) {
           failed += 1
@@ -117,7 +143,7 @@ export function UploadsPage() {
         }
       }
 
-      const summary = `新增 ${createdTotal} 个，重复 ${duplicatedTotal} 个`
+      const summary = `新增 ${createdTotal} 个，覆盖 ${duplicatedTotal} 个`
       if (failed === 0) {
         show(`上传完成：${summary}`, 'success')
         setItems([])
@@ -128,11 +154,16 @@ export function UploadsPage() {
       }
     } finally {
       setLoading(false)
+      if (recordsPage === 1) {
+        loadRecords().catch((e) => show(e instanceof Error ? e.message : '上传记录刷新失败'))
+      } else {
+        setRecordsPage(1)
+      }
     }
   }
 
   return (
-    <div>
+    <div className="h-full overflow-auto pb-1">
       {toast ? <Toast message={toast.message} type={toast.type} /> : null}
       <PageHeader title="上传文件" desc="支持拖拽/多选 .json 与 .zip（可多个 zip），单批不超过 500MB，文件名不能包含中文" />
       <Card>
@@ -243,6 +274,66 @@ export function UploadsPage() {
             </Button>
           </div>
         </CardContent>
+      </Card>
+
+      <Card className="mt-4 overflow-hidden">
+        <CardHeader className="border-b p-4">
+          <CardTitle className="text-base">上传记录</CardTitle>
+        </CardHeader>
+        <div className="max-h-[32rem] overflow-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="sticky top-0 border-b border-border bg-card text-left text-muted-foreground">
+              <tr>
+                <th className="w-44 px-4 py-3 font-medium">上传时间</th>
+                <th className="px-4 py-3 font-medium">文件名</th>
+                <th className="w-28 px-4 py-3 text-right font-medium">新增数量</th>
+                <th className="w-28 px-4 py-3 text-right font-medium">覆盖数量</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((record) => (
+                <tr key={record.id} className="border-b border-border/50 last:border-b-0">
+                  <td className="whitespace-nowrap px-4 py-3">{record.created_at || '-'}</td>
+                  <td className="max-w-0 truncate px-4 py-3 font-mono text-xs" title={record.filename}>{record.filename}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{record.created_count}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{record.overwritten_count}</td>
+                </tr>
+              ))}
+              {!records.length ? (
+                <tr>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={4}>
+                    {recordsLoading ? '加载中...' : '暂无上传记录'}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        {recordsPagination ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+            <span>共 {recordsPagination.total} 条，第 {recordsPagination.page}/{recordsPagination.total_pages} 页</span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={!recordsPagination.has_prev || recordsLoading}
+                onClick={() => setRecordsPage(recordsPagination.prev_page)}
+              >
+                上一页
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={!recordsPagination.has_next || recordsLoading}
+                onClick={() => setRecordsPage(recordsPagination.next_page)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Card>
     </div>
   )

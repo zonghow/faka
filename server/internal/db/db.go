@@ -55,6 +55,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&models.Space{},
 		&models.ManagedFile{},
+		&models.UploadRecord{},
 		&models.Card{},
 		&models.Redemption{},
 		&models.AuditLog{},
@@ -67,6 +68,7 @@ func AutoMigrate(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_files_space_status_id ON files(space_id, status, id)",
 		"CREATE INDEX IF NOT EXISTS idx_cards_space_status_created ON cards(space_id, status, created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_files_sold_card_status ON files(sold_card_id, status)",
+		"CREATE INDEX IF NOT EXISTS idx_upload_records_space_created ON upload_records(space_id, created_at)",
 	}
 	for _, stmt := range indexes {
 		if err := db.Exec(stmt).Error; err != nil {
