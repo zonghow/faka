@@ -313,16 +313,21 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 	if err != nil {
 		return nil, err
 	}
-	if len(codes) != 1 {
-		return nil, Err("补号时请只输入一个卡密")
+	if len(codes) == 0 {
+		return nil, Err("请输入卡密")
 	}
+	if len(codes) > 200 {
+		return nil, Err("单次最多使用 200 个卡密")
+	}
+	// Keep original multi-code string for redeem helpers (they parse again).
+	rawCodes := strings.Join(codes, "\n")
 
 	switch relay.Type {
 	case RelayTypeSub2API:
 		if groupID <= 0 {
 			return nil, Err("请选择要绑定的分组")
 		}
-		path, _, err := RedeemCardsSub2API(db, downloadDir, codes[0])
+		path, _, err := RedeemCardsSub2API(db, downloadDir, rawCodes)
 		if err != nil {
 			return nil, err
 		}
@@ -335,15 +340,15 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 		if err != nil {
 			return nil, err
 		}
-		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:%s:group=%d:n=%d", relay.Name, codes[0], groupID, n))
-		msg := fmt.Sprintf("已向中转补入 %d 个账号并绑定分组", n)
+		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:cards=%d:group=%d:n=%d", relay.Name, len(codes), groupID, n))
+		msg := fmt.Sprintf("已用 %d 个卡密向中转补入 %d 个账号并绑定分组", len(codes), n)
 		if failed > 0 {
 			msg += fmt.Sprintf("，失败 %d 个", failed)
 		}
 		return &SupplyResult{Supplied: n, Failed: failed, Message: msg, Errors: errs}, nil
 
 	case RelayTypeCPA:
-		path, err := RedeemCardsCPA(db, downloadDir, codes[0])
+		path, err := RedeemCardsCPA(db, downloadDir, rawCodes)
 		if err != nil {
 			return nil, err
 		}
@@ -353,8 +358,8 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 			return nil, err
 		}
 		uploaded, failed, errs := pushCPAAuthFiles(relay, files)
-		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:%s:ok=%d,fail=%d", relay.Name, codes[0], uploaded, failed))
-		msg := fmt.Sprintf("已向中转补入 %d 个文件", uploaded)
+		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:cards=%d:ok=%d,fail=%d", relay.Name, len(codes), uploaded, failed))
+		msg := fmt.Sprintf("已用 %d 个卡密向中转补入 %d 个文件", len(codes), uploaded)
 		if failed > 0 {
 			msg += fmt.Sprintf("，失败 %d 个", failed)
 		}

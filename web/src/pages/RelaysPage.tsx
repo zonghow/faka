@@ -15,6 +15,7 @@ import {
   Input,
   Label,
   PageHeader,
+  Textarea,
   Select,
   SelectContent,
   SelectItem,
@@ -441,7 +442,13 @@ export function RelaysPage() {
             {supplyMode === 'cdkey' ? (
               <div className="space-y-2">
                 <Label>卡密</Label>
-                <Input value={cardCode} onChange={(e) => setCardCode(e.target.value)} placeholder="输入卡密" required />
+                <Textarea
+                  value={cardCode}
+                  onChange={(e) => setCardCode(e.target.value)}
+                  placeholder={'支持多个卡密，每行一个\n也可用逗号/空格分隔'}
+                  className="min-h-28"
+                  required
+                />
               </div>
             ) : (
               <div className="space-y-2">
