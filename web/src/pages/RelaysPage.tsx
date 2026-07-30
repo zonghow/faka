@@ -55,6 +55,7 @@ export function RelaysPage() {
   const [groups, setGroups] = useState<RelayGroup[]>([])
   const [groupID, setGroupID] = useState<string>('')
   const [groupsLoading, setGroupsLoading] = useState(false)
+  const [concurrency, setConcurrency] = useState(10)
   const [fillingFreeCount, setFillingFreeCount] = useState(false)
   const [supplying, setSupplying] = useState(false)
   const { toast, show } = useToast()
@@ -141,6 +142,7 @@ export function RelaysPage() {
     setSupplyMode('idle')
     setCardCode('')
     setIdleCount(1)
+    setConcurrency(10)
     setGroups([])
     setGroupID('')
     if (r.type !== 'sub2api') return
@@ -489,23 +491,36 @@ export function RelaysPage() {
               </div>
             )}
             {supplyRelay?.type === 'sub2api' ? (
-              <div className="space-y-2">
-                <Label>绑定分组</Label>
-                <Select value={groupID || undefined} onValueChange={setGroupID} disabled={groupsLoading || groups.length === 0}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={groupsLoading ? '加载分组中...' : groups.length ? '选择分组' : '暂无分组'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((g) => (
-                      <SelectItem key={g.id} value={String(g.id)}>
-                        {g.name}
-                        {g.platform ? ` (${g.platform})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">补入的账号会自动绑定到所选分组，默认选中第一个</p>
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label>绑定分组</Label>
+                  <Select value={groupID || undefined} onValueChange={setGroupID} disabled={groupsLoading || groups.length === 0}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={groupsLoading ? '加载分组中...' : groups.length ? '选择分组' : '暂无分组'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map((g) => (
+                        <SelectItem key={g.id} value={String(g.id)}>
+                          {g.name}
+                          {g.platform ? ` (${g.platform})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">补入的账号会自动绑定到所选分组，默认选中第一个</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>账号并发</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10000}
+                    value={concurrency}
+                    onChange={(e) => setConcurrency(Number(e.target.value) || 10)}
+                  />
+                  <p className="text-xs text-muted-foreground">设置这批补入账号的并发数，默认 10</p>
+                </div>
+              </>
             ) : null}
           </div>
           <DialogFooter>
@@ -524,10 +539,11 @@ export function RelaysPage() {
                 setSupplying(true)
                 try {
                   const group_id = groupID ? Number(groupID) : undefined
+                  const conc = supplyRelay.type === 'sub2api' ? concurrency : undefined
                   const res =
                     supplyMode === 'cdkey'
-                      ? await api.supplyRelay(supplyRelay.id, { mode: 'cdkey', card_code: cardCode, group_id })
-                      : await api.supplyRelay(supplyRelay.id, { mode: 'idle', count: idleCount, group_id })
+                      ? await api.supplyRelay(supplyRelay.id, { mode: 'cdkey', card_code: cardCode, group_id, concurrency: conc })
+                      : await api.supplyRelay(supplyRelay.id, { mode: 'idle', count: idleCount, group_id, concurrency: conc })
                   show(res.message, 'success')
                   setSupplyRelay(null)
                   await loadStats([supplyRelay])

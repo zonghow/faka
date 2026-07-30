@@ -156,10 +156,11 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Mode     string `json:"mode"` // cdkey | idle
-		CardCode string `json:"card_code"`
-		Count    int    `json:"count"`
-		GroupID  int64  `json:"group_id"`
+		Mode        string `json:"mode"` // cdkey | idle
+		CardCode    string `json:"card_code"`
+		Count       int    `json:"count"`
+		GroupID     int64  `json:"group_id"`
+		Concurrency int    `json:"concurrency"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		fail(c, http.StatusBadRequest, "参数错误")
@@ -175,7 +176,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 	}
 	switch mode {
 	case "cdkey":
-		result, err := services.SupplyRelayByCDKey(h.DB, h.Cfg.DownloadDir, &relay, body.CardCode, body.GroupID)
+		result, err := services.SupplyRelayByCDKey(h.DB, h.Cfg.DownloadDir, &relay, body.CardCode, body.GroupID, body.Concurrency)
 		if err != nil {
 			serviceFail(c, err)
 			return
@@ -192,7 +193,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			serviceFail(c, err)
 			return
 		}
-		result, err := services.SupplyRelayByIdleFiles(h.DB, space, &relay, body.Count, body.GroupID)
+		result, err := services.SupplyRelayByIdleFiles(h.DB, space, &relay, body.Count, body.GroupID, body.Concurrency)
 		if err != nil {
 			serviceFail(c, err)
 			return

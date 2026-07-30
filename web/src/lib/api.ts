@@ -242,7 +242,7 @@ export const api = {
     request<{ ok: boolean; groups: RelayGroup[] }>(`/api/admin/relays/${id}/groups`),
   supplyRelay: (
     id: number,
-    body: { mode: 'cdkey' | 'idle'; card_code?: string; count?: number; group_id?: number },
+    body: { mode: 'cdkey' | 'idle'; card_code?: string; count?: number; group_id?: number; concurrency?: number },
   ) =>
     request<{ ok: boolean; message: string; supplied: number; failed: number; errors?: string[] }>(
       `/api/admin/relays/${id}/supply`,

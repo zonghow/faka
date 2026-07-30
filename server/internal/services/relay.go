@@ -308,7 +308,20 @@ func ListSub2APIGroups(relay *models.Relay) ([]Sub2APIGroup, error) {
 	return resp.Data, nil
 }
 
-func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, cardCode string, groupID int64) (*SupplyResult, error) {
+func normalizeAccountConcurrency(v int) (int, error) {
+	if v < 0 {
+		return 0, Err("账号并发不能为负数")
+	}
+	if v == 0 {
+		return 10, nil
+	}
+	if v > 10000 {
+		return 0, Err("账号并发不能超过 10000")
+	}
+	return v, nil
+}
+
+func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, cardCode string, groupID int64, concurrency int) (*SupplyResult, error) {
 	codes, err := ParseCardCodes(cardCode)
 	if err != nil {
 		return nil, err
@@ -327,6 +340,10 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 		if groupID <= 0 {
 			return nil, Err("请选择要绑定的分组")
 		}
+		concurrency, err = normalizeAccountConcurrency(concurrency)
+		if err != nil {
+			return nil, err
+		}
 		path, _, err := RedeemCardsSub2API(db, downloadDir, rawCodes)
 		if err != nil {
 			return nil, err
@@ -336,12 +353,12 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 		if err != nil {
 			return nil, Err("读取兑换结果失败")
 		}
-		n, failed, errs, err := pushSub2APIAccounts(relay, raw, groupID)
+		n, failed, errs, err := pushSub2APIAccounts(relay, raw, groupID, concurrency)
 		if err != nil {
 			return nil, err
 		}
-		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:cards=%d:group=%d:n=%d", relay.Name, len(codes), groupID, n))
-		msg := fmt.Sprintf("已用 %d 个卡密向中转补入 %d 个账号并绑定分组", len(codes), n)
+		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:cards=%d:group=%d:conc=%d:n=%d", relay.Name, len(codes), groupID, concurrency, n))
+		msg := fmt.Sprintf("已用 %d 个卡密向中转补入 %d 个账号并绑定分组（并发 %d）", len(codes), n, concurrency)
 		if failed > 0 {
 			msg += fmt.Sprintf("，失败 %d 个", failed)
 		}
@@ -369,7 +386,7 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 	}
 }
 
-func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Relay, count int, groupID int64) (*SupplyResult, error) {
+func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Relay, count int, groupID int64, concurrency int) (*SupplyResult, error) {
 	if count <= 0 {
 		return nil, Err("数量必须大于 0")
 	}
@@ -424,6 +441,11 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, Err("请选择要绑定的分组")
 		}
+		concurrency, err = normalizeAccountConcurrency(concurrency)
+		if err != nil {
+			_ = releaseClaimedFiles(db, fileIDs(files))
+			return nil, err
+		}
 		cfg, err := BuildSub2APIConfig(files)
 		if err != nil {
 			_ = releaseClaimedFiles(db, fileIDs(files))
@@ -434,7 +456,7 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, err
 		}
-		n, failCount, errs, err := pushSub2APIAccounts(relay, raw, groupID)
+		n, failCount, errs, err := pushSub2APIAccounts(relay, raw, groupID, concurrency)
 		if err != nil {
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, err
@@ -507,12 +529,12 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 
 	detail := fmt.Sprintf("%s:count=%d,ok=%d,fail=%d", relay.Name, count, len(successIDs), len(failedIDs))
 	if relay.Type == RelayTypeSub2API && groupID > 0 {
-		detail = fmt.Sprintf("%s:group=%d:count=%d,ok=%d,fail=%d", relay.Name, groupID, count, len(successIDs), len(failedIDs))
+		detail = fmt.Sprintf("%s:group=%d:conc=%d:count=%d,ok=%d,fail=%d", relay.Name, groupID, concurrency, count, len(successIDs), len(failedIDs))
 	}
 	AddAudit(db, &space.ID, "supply_relay_idle", "relay", &relay.ID, detail)
 	msg := fmt.Sprintf("已向中转补入 %d 个", supplied)
 	if relay.Type == RelayTypeSub2API {
-		msg = fmt.Sprintf("已向中转补入 %d 个账号并绑定分组", supplied)
+		msg = fmt.Sprintf("已向中转补入 %d 个账号并绑定分组（并发 %d）", supplied, concurrency)
 	} else {
 		msg = fmt.Sprintf("已向中转补入 %d 个文件", len(successIDs))
 	}
@@ -553,7 +575,7 @@ func releaseClaimedFiles(db *gorm.DB, ids []uint) error {
 	})
 }
 
-func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64) (created, failed int, errs []string, err error) {
+func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64, concurrency int) (created, failed int, errs []string, err error) {
 	var export struct {
 		Accounts []map[string]any `json:"accounts"`
 	}
@@ -566,6 +588,10 @@ func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64) (create
 	if groupID <= 0 {
 		return 0, 0, nil, Err("请选择要绑定的分组")
 	}
+	concurrency, err = normalizeAccountConcurrency(concurrency)
+	if err != nil {
+		return 0, 0, nil, err
+	}
 
 	// Use batch create so each account can bind group_ids at creation time.
 	// data import always forces GroupIDs=nil and cannot select a target group.
@@ -577,7 +603,7 @@ func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64) (create
 			"type":                       pickString(acc["type"], "oauth"),
 			"credentials":                acc["credentials"],
 			"extra":                      acc["extra"],
-			"concurrency":                acc["concurrency"],
+			"concurrency":                concurrency,
 			"priority":                   acc["priority"],
 			"rate_multiplier":            acc["rate_multiplier"],
 			"auto_pause_on_expired":      acc["auto_pause_on_expired"],
