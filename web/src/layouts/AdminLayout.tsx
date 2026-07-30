@@ -9,8 +9,8 @@ const nav = [
   { to: '/admin/spaces', label: '空间设置' },
   { to: '/admin/cards', label: '卡密管理' },
   { to: '/admin/files', label: '文件管理' },
-  { to: '/admin/uploads', label: '上传文件' },
   { to: '/admin/relays', label: '中转补号' },
+  { to: '/admin/uploads', label: '上传文件' },
 ]
 
 export function AdminLayout() {

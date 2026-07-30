@@ -29,6 +29,8 @@ type StatsEntry = RelayStats & { loading?: boolean }
 
 type StatsMap = Record<number, StatsEntry>
 
+const quickCounts = [100, 200, 300, 500, 1000, 2000, 3000]
+
 function dash(v: number | undefined | null) {
   if (v === undefined || v === null) return '-'
   return String(v)
@@ -46,12 +48,13 @@ export function RelaysPage() {
   const [address, setAddress] = useState('')
   const [password, setPassword] = useState('')
   const [supplyRelay, setSupplyRelay] = useState<Relay | null>(null)
-  const [supplyMode, setSupplyMode] = useState<'cdkey' | 'idle'>('cdkey')
+  const [supplyMode, setSupplyMode] = useState<'cdkey' | 'idle'>('idle')
   const [cardCode, setCardCode] = useState('')
   const [idleCount, setIdleCount] = useState(1)
   const [groups, setGroups] = useState<RelayGroup[]>([])
   const [groupID, setGroupID] = useState<string>('')
   const [groupsLoading, setGroupsLoading] = useState(false)
+  const [fillingFreeCount, setFillingFreeCount] = useState(false)
   const [supplying, setSupplying] = useState(false)
   const { toast, show } = useToast()
   const confirm = useConfirm()
@@ -111,9 +114,30 @@ export function RelaysPage() {
     setPassword(r.password)
   }
 
+  const fillFreeCount = async () => {
+    setFillingFreeCount(true)
+    try {
+      const res = await api.dashboard()
+      const freeFiles = Number(res.stats['当前空闲文件数'] || 0)
+      if (freeFiles <= 0) {
+        show('当前没有空闲文件')
+        return
+      }
+      const count = Math.min(freeFiles, 500)
+      setIdleCount(count)
+      if (freeFiles > 500) {
+        show('空闲文件数超过补号上限，已填入 500', 'success')
+      }
+    } catch (e) {
+      show(e instanceof Error ? e.message : '空闲文件数加载失败')
+    } finally {
+      setFillingFreeCount(false)
+    }
+  }
+
   const openSupply = async (r: Relay) => {
     setSupplyRelay(r)
-    setSupplyMode('cdkey')
+    setSupplyMode('idle')
     setCardCode('')
     setIdleCount(1)
     setGroups([])
@@ -409,8 +433,8 @@ export function RelaysPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cdkey">使用 CDKey</SelectItem>
                   <SelectItem value="idle">使用空闲文件</SelectItem>
+                  <SelectItem value="cdkey">使用 CDKey</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -429,6 +453,31 @@ export function RelaysPage() {
                   value={idleCount}
                   onChange={(e) => setIdleCount(Number(e.target.value) || 1)}
                 />
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {quickCounts.map((count) => (
+                    <Button
+                      key={count}
+                      type="button"
+                      size="sm"
+                      variant={idleCount === count ? 'secondary' : 'outline'}
+                      className="h-6 px-2"
+                      onClick={() => setIdleCount(count)}
+                    >
+                      {count}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2"
+                    loading={fillingFreeCount}
+                    disabled={supplying || fillingFreeCount}
+                    onClick={() => fillFreeCount()}
+                  >
+                    填入空闲数
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">将随机挑选当前空间可用文件，成功后标记为「已补中转」</p>
               </div>
             )}
