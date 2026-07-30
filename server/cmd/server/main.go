@@ -97,6 +97,7 @@ func main() {
 			admin.POST("/relays/:id", relayH.Update)
 			admin.DELETE("/relays/:id", relayH.Delete)
 			admin.GET("/relays/:id/stats", relayH.Stats)
+			admin.GET("/relays/:id/groups", relayH.Groups)
 			admin.POST("/relays/:id/supply", relayH.Supply)
 		}
 	}

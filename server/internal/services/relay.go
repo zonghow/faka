@@ -267,7 +267,48 @@ type SupplyResult struct {
 	Errors   []string `json:"errors,omitempty"`
 }
 
-func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, cardCode string) (*SupplyResult, error) {
+type Sub2APIGroup struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+	Status   string `json:"status"`
+}
+
+func ListSub2APIGroups(relay *models.Relay) ([]Sub2APIGroup, error) {
+	if relay.Type != RelayTypeSub2API {
+		return nil, Err("仅 sub2api 中转支持分组")
+	}
+	client := httpClient()
+	// Prefer openai groups first for this product; fall back to all active groups.
+	body, err := sub2APIGet(client, relay, "/api/v1/admin/groups/all?platform=openai")
+	if err != nil {
+		body, err = sub2APIGet(client, relay, "/api/v1/admin/groups/all")
+		if err != nil {
+			return nil, err
+		}
+	}
+	var resp struct {
+		Code    int            `json:"code"`
+		Message string         `json:"message"`
+		Data    []Sub2APIGroup `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, Err("解析分组列表失败")
+	}
+	if resp.Code != 0 {
+		msg := resp.Message
+		if msg == "" {
+			msg = "获取分组失败"
+		}
+		return nil, Err(msg)
+	}
+	if resp.Data == nil {
+		return []Sub2APIGroup{}, nil
+	}
+	return resp.Data, nil
+}
+
+func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, cardCode string, groupID int64) (*SupplyResult, error) {
 	codes, err := ParseCardCodes(cardCode)
 	if err != nil {
 		return nil, err
@@ -278,6 +319,9 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 
 	switch relay.Type {
 	case RelayTypeSub2API:
+		if groupID <= 0 {
+			return nil, Err("请选择要绑定的分组")
+		}
 		path, _, err := RedeemCardsSub2API(db, downloadDir, codes[0])
 		if err != nil {
 			return nil, err
@@ -287,12 +331,16 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 		if err != nil {
 			return nil, Err("读取兑换结果失败")
 		}
-		n, err := pushSub2APIAccounts(relay, raw)
+		n, failed, errs, err := pushSub2APIAccounts(relay, raw, groupID)
 		if err != nil {
 			return nil, err
 		}
-		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:%s:n=%d", relay.Name, codes[0], n))
-		return &SupplyResult{Supplied: n, Message: fmt.Sprintf("已向中转补入 %d 个账号", n)}, nil
+		AddAudit(db, nil, "supply_relay_cdkey", "relay", &relay.ID, fmt.Sprintf("%s:%s:group=%d:n=%d", relay.Name, codes[0], groupID, n))
+		msg := fmt.Sprintf("已向中转补入 %d 个账号并绑定分组", n)
+		if failed > 0 {
+			msg += fmt.Sprintf("，失败 %d 个", failed)
+		}
+		return &SupplyResult{Supplied: n, Failed: failed, Message: msg, Errors: errs}, nil
 
 	case RelayTypeCPA:
 		path, err := RedeemCardsCPA(db, downloadDir, codes[0])
@@ -316,7 +364,7 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 	}
 }
 
-func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Relay, count int) (*SupplyResult, error) {
+func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Relay, count int, groupID int64) (*SupplyResult, error) {
 	if count <= 0 {
 		return nil, Err("数量必须大于 0")
 	}
@@ -367,6 +415,10 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 
 	switch relay.Type {
 	case RelayTypeSub2API:
+		if groupID <= 0 {
+			_ = releaseClaimedFiles(db, fileIDs(files))
+			return nil, Err("请选择要绑定的分组")
+		}
 		cfg, err := BuildSub2APIConfig(files)
 		if err != nil {
 			_ = releaseClaimedFiles(db, fileIDs(files))
@@ -377,16 +429,20 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, err
 		}
-		n, err := pushSub2APIAccounts(relay, raw)
+		n, failCount, errs, err := pushSub2APIAccounts(relay, raw, groupID)
 		if err != nil {
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, err
 		}
-		successIDs = fileIDs(files)
-		supplied = n
-		if supplied == 0 {
-			supplied = len(files)
+		pushErrs = append(pushErrs, errs...)
+		// Files were converted as a batch export; mark inventory consumed when any account was created.
+		if n > 0 {
+			successIDs = fileIDs(files)
+		} else {
+			failedIDs = fileIDs(files)
 		}
+		supplied = n
+		_ = failCount
 
 	case RelayTypeCPA:
 		payloads := make([]namedJSON, 0, len(files))
@@ -444,10 +500,19 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 		_ = releaseClaimedFiles(db, failedIDs)
 	}
 
-	AddAudit(db, &space.ID, "supply_relay_idle", "relay", &relay.ID, fmt.Sprintf("%s:count=%d,ok=%d,fail=%d", relay.Name, count, len(successIDs), len(failedIDs)))
-	msg := fmt.Sprintf("已向中转补入 %d 个文件", len(successIDs))
-	if len(failedIDs) > 0 {
-		msg += fmt.Sprintf("，失败 %d 个", len(failedIDs))
+	detail := fmt.Sprintf("%s:count=%d,ok=%d,fail=%d", relay.Name, count, len(successIDs), len(failedIDs))
+	if relay.Type == RelayTypeSub2API && groupID > 0 {
+		detail = fmt.Sprintf("%s:group=%d:count=%d,ok=%d,fail=%d", relay.Name, groupID, count, len(successIDs), len(failedIDs))
+	}
+	AddAudit(db, &space.ID, "supply_relay_idle", "relay", &relay.ID, detail)
+	msg := fmt.Sprintf("已向中转补入 %d 个", supplied)
+	if relay.Type == RelayTypeSub2API {
+		msg = fmt.Sprintf("已向中转补入 %d 个账号并绑定分组", supplied)
+	} else {
+		msg = fmt.Sprintf("已向中转补入 %d 个文件", len(successIDs))
+	}
+	if len(failedIDs) > 0 || len(pushErrs) > 0 {
+		msg += fmt.Sprintf("，失败 %d 个", maxInt(len(failedIDs), suppliedFailCount(pushErrs)))
 	}
 	return &SupplyResult{
 		Supplied: supplied,
@@ -483,76 +548,109 @@ func releaseClaimedFiles(db *gorm.DB, ids []uint) error {
 	})
 }
 
-func pushSub2APIAccounts(relay *models.Relay, raw []byte) (int, error) {
+func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64) (created, failed int, errs []string, err error) {
 	var export struct {
 		Accounts []map[string]any `json:"accounts"`
-		Proxies  []any            `json:"proxies"`
 	}
 	if err := json.Unmarshal(raw, &export); err != nil {
-		return 0, Err("兑换结果 JSON 无效")
+		return 0, 0, nil, Err("兑换结果 JSON 无效")
 	}
-	if export.Accounts == nil {
-		return 0, Err("兑换结果中没有 accounts")
+	if len(export.Accounts) == 0 {
+		return 0, 0, nil, Err("兑换结果中没有 accounts")
 	}
-	proxies := export.Proxies
-	if proxies == nil {
-		proxies = []any{}
+	if groupID <= 0 {
+		return 0, 0, nil, Err("请选择要绑定的分组")
 	}
-	payload := map[string]any{
-		"data": map[string]any{
-			"type":        "sub2api-data",
-			"version":     1,
-			"exported_at": time.Now().UTC().Format(time.RFC3339),
-			"proxies":     proxies,
-			"accounts":    export.Accounts,
-		},
-		"skip_default_group_bind": true,
+
+	// Use batch create so each account can bind group_ids at creation time.
+	// data import always forces GroupIDs=nil and cannot select a target group.
+	accounts := make([]map[string]any, 0, len(export.Accounts))
+	for _, acc := range export.Accounts {
+		item := map[string]any{
+			"name":                       pickString(acc["name"]),
+			"platform":                   pickString(acc["platform"], "openai"),
+			"type":                       pickString(acc["type"], "oauth"),
+			"credentials":                acc["credentials"],
+			"extra":                      acc["extra"],
+			"concurrency":                acc["concurrency"],
+			"priority":                   acc["priority"],
+			"rate_multiplier":            acc["rate_multiplier"],
+			"auto_pause_on_expired":      acc["auto_pause_on_expired"],
+			"group_ids":                  []int64{groupID},
+			"confirm_mixed_channel_risk": true,
+		}
+		if item["name"] == "" {
+			item["name"] = "imported"
+		}
+		if item["credentials"] == nil {
+			failed++
+			errs = append(errs, fmt.Sprintf("%v: 缺少 credentials", item["name"]))
+			continue
+		}
+		accounts = append(accounts, item)
 	}
+	if len(accounts) == 0 {
+		if len(errs) > 0 {
+			return 0, failed, errs, Err(errs[0])
+		}
+		return 0, 0, nil, Err("没有可导入的账号")
+	}
+
+	payload := map[string]any{"accounts": accounts}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return 0, err
+		return 0, 0, nil, err
 	}
 	client := httpClient()
-	respBody, status, err := sub2APIRequest(client, relay, http.MethodPost, "/api/v1/admin/accounts/data", body, "application/json")
+	respBody, status, err := sub2APIRequest(client, relay, http.MethodPost, "/api/v1/admin/accounts/batch", body, "application/json")
 	if err != nil {
-		return 0, err
+		return 0, 0, nil, err
 	}
 	if status < 200 || status >= 300 {
-		return 0, Err(fmt.Sprintf("sub2api 导入失败 HTTP %d: %s", status, truncate(string(respBody), 300)))
+		return 0, 0, nil, Err(fmt.Sprintf("sub2api 批量创建失败 HTTP %d: %s", status, truncate(string(respBody), 300)))
 	}
 	var resp struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
-			AccountCreated int `json:"account_created"`
-			AccountFailed  int `json:"account_failed"`
-			Errors         []struct {
-				Message string `json:"message"`
-			} `json:"errors"`
+			Success int `json:"success"`
+			Failed  int `json:"failed"`
+			Results []struct {
+				Name    string `json:"name"`
+				Success bool   `json:"success"`
+				Error   string `json:"error"`
+			} `json:"results"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return 0, Err("解析 sub2api 导入响应失败")
+		return 0, 0, nil, Err("解析 sub2api 批量创建响应失败")
 	}
 	if resp.Code != 0 {
 		msg := resp.Message
 		if msg == "" {
-			msg = "sub2api 导入失败"
+			msg = "sub2api 批量创建失败"
 		}
-		return 0, Err(msg)
+		return 0, 0, nil, Err(msg)
 	}
-	if resp.Data.AccountCreated == 0 && resp.Data.AccountFailed > 0 {
-		msg := "sub2api 全部导入失败"
-		if len(resp.Data.Errors) > 0 && resp.Data.Errors[0].Message != "" {
-			msg = resp.Data.Errors[0].Message
+	created = resp.Data.Success
+	failed += resp.Data.Failed
+	for _, r := range resp.Data.Results {
+		if !r.Success && r.Error != "" {
+			name := r.Name
+			if name == "" {
+				name = "account"
+			}
+			errs = append(errs, name+": "+r.Error)
 		}
-		return 0, Err(msg)
 	}
-	n := resp.Data.AccountCreated
-	if n == 0 {
-		n = len(export.Accounts)
+	if created == 0 {
+		msg := "sub2api 全部创建失败"
+		if len(errs) > 0 {
+			msg = errs[0]
+		}
+		return 0, failed, errs, Err(msg)
 	}
-	return n, nil
+	return created, failed, errs, nil
 }
 
 func pushCPAAuthFiles(relay *models.Relay, files []namedJSON) (uploaded, failed int, errs []string) {
@@ -739,4 +837,15 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func suppliedFailCount(errs []string) int {
+	return len(errs)
 }

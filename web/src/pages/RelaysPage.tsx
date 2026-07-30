@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Relay, type RelayStats } from '@/lib/api'
+import { api, type Relay, type RelayGroup, type RelayStats } from '@/lib/api'
 import {
   Button,
   Card,
@@ -49,6 +49,9 @@ export function RelaysPage() {
   const [supplyMode, setSupplyMode] = useState<'cdkey' | 'idle'>('cdkey')
   const [cardCode, setCardCode] = useState('')
   const [idleCount, setIdleCount] = useState(1)
+  const [groups, setGroups] = useState<RelayGroup[]>([])
+  const [groupID, setGroupID] = useState<string>('')
+  const [groupsLoading, setGroupsLoading] = useState(false)
   const [supplying, setSupplying] = useState(false)
   const { toast, show } = useToast()
   const confirm = useConfirm()
@@ -108,11 +111,25 @@ export function RelaysPage() {
     setPassword(r.password)
   }
 
-  const openSupply = (r: Relay) => {
+  const openSupply = async (r: Relay) => {
     setSupplyRelay(r)
     setSupplyMode('cdkey')
     setCardCode('')
     setIdleCount(1)
+    setGroups([])
+    setGroupID('')
+    if (r.type !== 'sub2api') return
+    setGroupsLoading(true)
+    try {
+      const res = await api.relayGroups(r.id)
+      setGroups(res.groups || [])
+      if (res.groups?.length) setGroupID(String(res.groups[0].id))
+      else show('该中转暂无可用分组，请先在 sub2api 创建分组')
+    } catch (e) {
+      show(e instanceof Error ? e.message : '加载分组失败')
+    } finally {
+      setGroupsLoading(false)
+    }
   }
 
   const renderSub2apiTable = () => (
@@ -415,6 +432,25 @@ export function RelaysPage() {
                 <p className="text-xs text-muted-foreground">将随机挑选当前空间可用文件，成功后标记为「已补中转」</p>
               </div>
             )}
+            {supplyRelay?.type === 'sub2api' ? (
+              <div className="space-y-2">
+                <Label>绑定分组</Label>
+                <Select value={groupID || undefined} onValueChange={setGroupID} disabled={groupsLoading || groups.length === 0}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={groupsLoading ? '加载分组中...' : groups.length ? '选择分组' : '暂无分组'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={String(g.id)}>
+                        {g.name}
+                        {g.platform ? ` (${g.platform})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">补入的账号会自动绑定到所选分组，默认选中第一个</p>
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setSupplyRelay(null)} disabled={supplying}>
@@ -422,14 +458,20 @@ export function RelaysPage() {
             </Button>
             <Button
               loading={supplying}
+              disabled={supplyRelay?.type === 'sub2api' && (!groupID || groupsLoading)}
               onClick={async () => {
                 if (!supplyRelay) return
+                if (supplyRelay.type === 'sub2api' && !groupID) {
+                  show('请选择要绑定的分组')
+                  return
+                }
                 setSupplying(true)
                 try {
+                  const group_id = groupID ? Number(groupID) : undefined
                   const res =
                     supplyMode === 'cdkey'
-                      ? await api.supplyRelay(supplyRelay.id, { mode: 'cdkey', card_code: cardCode })
-                      : await api.supplyRelay(supplyRelay.id, { mode: 'idle', count: idleCount })
+                      ? await api.supplyRelay(supplyRelay.id, { mode: 'cdkey', card_code: cardCode, group_id })
+                      : await api.supplyRelay(supplyRelay.id, { mode: 'idle', count: idleCount, group_id })
                   show(res.message, 'success')
                   setSupplyRelay(null)
                   await loadStats([supplyRelay])

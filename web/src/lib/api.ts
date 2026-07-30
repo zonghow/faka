@@ -54,6 +54,13 @@ export type RelayStats = {
   message?: string
 }
 
+export type RelayGroup = {
+  id: number
+  name: string
+  platform?: string
+  status?: string
+}
+
 export type Pagination = {
   page: number
   page_size: number
@@ -231,7 +238,12 @@ export const api = {
   deleteRelay: (id: number) => request<{ ok: boolean; message: string }>(`/api/admin/relays/${id}`, { method: 'DELETE' }),
   relayStats: (id: number) =>
     request<{ ok: boolean; type: string; stats: RelayStats }>(`/api/admin/relays/${id}/stats`),
-  supplyRelay: (id: number, body: { mode: 'cdkey' | 'idle'; card_code?: string; count?: number }) =>
+  relayGroups: (id: number) =>
+    request<{ ok: boolean; groups: RelayGroup[] }>(`/api/admin/relays/${id}/groups`),
+  supplyRelay: (
+    id: number,
+    body: { mode: 'cdkey' | 'idle'; card_code?: string; count?: number; group_id?: number },
+  ) =>
     request<{ ok: boolean; message: string; supplied: number; failed: number; errors?: string[] }>(
       `/api/admin/relays/${id}/supply`,
       { method: 'POST', body: JSON.stringify(body) },

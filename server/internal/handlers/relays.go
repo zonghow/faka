@@ -129,6 +129,25 @@ func (h *RelayHandler) Stats(c *gin.Context) {
 	ok(c, gin.H{"stats": stats, "type": relay.Type})
 }
 
+func (h *RelayHandler) Groups(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var relay models.Relay
+	if err := h.DB.First(&relay, id).Error; err != nil {
+		fail(c, http.StatusNotFound, "中转不存在")
+		return
+	}
+	if relay.Type != services.RelayTypeSub2API {
+		fail(c, http.StatusBadRequest, "仅 sub2api 中转支持分组")
+		return
+	}
+	groups, err := services.ListSub2APIGroups(&relay)
+	if err != nil {
+		serviceFail(c, err)
+		return
+	}
+	ok(c, gin.H{"groups": groups})
+}
+
 func (h *RelayHandler) Supply(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	var relay models.Relay
@@ -140,6 +159,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 		Mode     string `json:"mode"` // cdkey | idle
 		CardCode string `json:"card_code"`
 		Count    int    `json:"count"`
+		GroupID  int64  `json:"group_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		fail(c, http.StatusBadRequest, "参数错误")
@@ -155,7 +175,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 	}
 	switch mode {
 	case "cdkey":
-		result, err := services.SupplyRelayByCDKey(h.DB, h.Cfg.DownloadDir, &relay, body.CardCode)
+		result, err := services.SupplyRelayByCDKey(h.DB, h.Cfg.DownloadDir, &relay, body.CardCode, body.GroupID)
 		if err != nil {
 			serviceFail(c, err)
 			return
@@ -172,7 +192,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			serviceFail(c, err)
 			return
 		}
-		result, err := services.SupplyRelayByIdleFiles(h.DB, space, &relay, body.Count)
+		result, err := services.SupplyRelayByIdleFiles(h.DB, space, &relay, body.Count, body.GroupID)
 		if err != nil {
 			serviceFail(c, err)
 			return
