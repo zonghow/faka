@@ -8,6 +8,7 @@ import { SpacesPage } from '@/pages/SpacesPage'
 import { CardsPage } from '@/pages/CardsPage'
 import { FilesPage } from '@/pages/FilesPage'
 import { UploadsPage } from '@/pages/UploadsPage'
+import { RelaysPage } from '@/pages/RelaysPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="cards" element={<CardsPage />} />
           <Route path="files" element={<FilesPage />} />
           <Route path="uploads" element={<UploadsPage />} />
+          <Route path="relays" element={<RelaysPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

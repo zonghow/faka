@@ -193,7 +193,7 @@ func ApplyFileStatus(item *models.ManagedFile, target string, ts time.Time) {
 		item.SoldAt = nil
 		item.VoidedAt = nil
 		item.SoldCardID = nil
-	case "sold":
+	case "sold", "relayed":
 		if item.SoldAt == nil {
 			item.SoldAt = &ts
 		}

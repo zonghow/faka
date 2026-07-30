@@ -24,12 +24,13 @@ const statusLabel: Record<string, string> = {
   available: '可用',
   locked: '锁定中',
   sold: '已提取',
+  relayed: '已补中转',
   voided: '已作废',
 }
 
 function statusVariant(status: string): 'default' | 'success' | 'warn' | 'danger' {
   if (status === 'available') return 'success'
-  if (status === 'locked') return 'warn'
+  if (status === 'locked' || status === 'relayed') return 'warn'
   if (status === 'voided') return 'danger'
   return 'default'
 }

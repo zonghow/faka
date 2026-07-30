@@ -10,6 +10,7 @@ const nav = [
   { to: '/admin/cards', label: '卡密管理' },
   { to: '/admin/files', label: '文件管理' },
   { to: '/admin/uploads', label: '上传文件' },
+  { to: '/admin/relays', label: '中转补号' },
 ]
 
 export function AdminLayout() {

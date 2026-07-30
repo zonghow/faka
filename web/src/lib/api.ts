@@ -34,6 +34,26 @@ export type UploadRecord = {
   created_at: string
 }
 
+export type Relay = {
+  id: number
+  name: string
+  type: 'sub2api' | 'cpa'
+  address: string
+  password: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type RelayStats = {
+  available?: number
+  total?: number
+  rate_limit?: number
+  error?: number
+  queue?: number
+  abnormal?: number
+  message?: string
+}
+
 export type Pagination = {
   page: number
   page_size: number
@@ -197,6 +217,25 @@ export const api = {
     const match = disposition.match(/filename="?([^"]+)"?/i)
     return { blob: await res.blob(), filename: match ? decodeURIComponent(match[1]) : 'files.zip' }
   },
+  relays: () => request<{ ok: boolean; relays: Relay[] }>('/api/admin/relays'),
+  createRelay: (name: string, type: 'sub2api' | 'cpa', address: string, password: string) =>
+    request<{ ok: boolean; message: string; relay: Relay }>('/api/admin/relays', {
+      method: 'POST',
+      body: JSON.stringify({ name, type, address, password }),
+    }),
+  updateRelay: (id: number, name: string, type: 'sub2api' | 'cpa', address: string, password: string) =>
+    request<{ ok: boolean; message: string; relay: Relay }>(`/api/admin/relays/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ name, type, address, password }),
+    }),
+  deleteRelay: (id: number) => request<{ ok: boolean; message: string }>(`/api/admin/relays/${id}`, { method: 'DELETE' }),
+  relayStats: (id: number) =>
+    request<{ ok: boolean; type: string; stats: RelayStats }>(`/api/admin/relays/${id}/stats`),
+  supplyRelay: (id: number, body: { mode: 'cdkey' | 'idle'; card_code?: string; count?: number }) =>
+    request<{ ok: boolean; message: string; supplied: number; failed: number; errors?: string[] }>(
+      `/api/admin/relays/${id}/supply`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 }
 
 export function setSpaceCookie(id: number) {

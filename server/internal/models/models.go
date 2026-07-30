@@ -77,3 +77,16 @@ type AuditLog struct {
 }
 
 func (AuditLog) TableName() string { return "audit_logs" }
+
+// Relay is an external proxy instance (sub2api or CLIProxyAPI) for account supply.
+type Relay struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"size:80;not null" json:"name"`
+	Type      string    `gorm:"size:20;index;not null" json:"type"` // sub2api | cpa
+	Address   string    `gorm:"size:500;not null" json:"address"`
+	Password  string    `gorm:"size:500;not null" json:"password"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (Relay) TableName() string { return "relays" }

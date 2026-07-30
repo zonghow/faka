@@ -27,3 +27,6 @@ web/dist/
 tmp*
 .idea/
 .vscode/
+alive_emails.txt
+all_emails.real.txt
+faka_K12_emails.txt

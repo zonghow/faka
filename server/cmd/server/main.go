@@ -44,6 +44,7 @@ func main() {
 	cardH := &handlers.CardHandler{DB: database, Cfg: cfg}
 	fileH := &handlers.FileHandler{DB: database, Cfg: cfg}
 	dashH := &handlers.DashboardHandler{DB: database}
+	relayH := &handlers.RelayHandler{DB: database, Cfg: cfg}
 
 	r := gin.Default()
 	// Keep most of large uploads on disk temp files; total size is enforced in handler (500MB).
@@ -90,6 +91,13 @@ func main() {
 			admin.POST("/files/upload", fileH.Upload)
 			admin.POST("/files/status", fileH.UpdateStatus)
 			admin.POST("/files/download", fileH.Download)
+
+			admin.GET("/relays", relayH.List)
+			admin.POST("/relays", relayH.Create)
+			admin.POST("/relays/:id", relayH.Update)
+			admin.DELETE("/relays/:id", relayH.Delete)
+			admin.GET("/relays/:id/stats", relayH.Stats)
+			admin.POST("/relays/:id/supply", relayH.Supply)
 		}
 	}
 

@@ -227,7 +227,7 @@ func (h *FileHandler) UpdateStatus(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "单次最多操作 10000 个文件")
 		return
 	}
-	valid := map[string]bool{"available": true, "locked": true, "sold": true, "voided": true}
+	valid := map[string]bool{"available": true, "locked": true, "sold": true, "voided": true, "relayed": true}
 	if !valid[body.TargetStatus] {
 		fail(c, http.StatusBadRequest, "目标状态无效")
 		return
@@ -248,7 +248,7 @@ func (h *FileHandler) UpdateStatus(c *gin.Context) {
 		values["sold_at"] = nil
 		values["voided_at"] = nil
 		values["sold_card_id"] = nil
-	case "sold":
+	case "sold", "relayed":
 		values["sold_at"] = ts
 		values["voided_at"] = nil
 	case "voided":

@@ -59,6 +59,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Card{},
 		&models.Redemption{},
 		&models.AuditLog{},
+		&models.Relay{},
 	); err != nil {
 		return err
 	}
