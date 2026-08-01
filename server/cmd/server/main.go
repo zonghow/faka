@@ -94,6 +94,7 @@ func main() {
 
 			admin.GET("/relays", relayH.List)
 			admin.POST("/relays", relayH.Create)
+			admin.GET("/relays/supply-records", relayH.SupplyRecords)
 			admin.POST("/relays/:id", relayH.Update)
 			admin.DELETE("/relays/:id", relayH.Delete)
 			admin.GET("/relays/:id/stats", relayH.Stats)

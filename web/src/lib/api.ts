@@ -61,6 +61,27 @@ export type RelayGroup = {
   status?: string
 }
 
+export type RelaySupplyRecord = {
+  id: number
+  relay_id: number
+  relay_name: string
+  relay_type: string
+  mode: string
+  space_id?: number | null
+  space_name?: string
+  supplied: number
+  failed: number
+  group_id?: number | null
+  group_name?: string
+  concurrency: number
+  card_count: number
+  request_count: number
+  message: string
+  errors?: string
+  status: string
+  created_at: string
+}
+
 export type Pagination = {
   page: number
   page_size: number
@@ -248,6 +269,13 @@ export const api = {
       `/api/admin/relays/${id}/supply`,
       { method: 'POST', body: JSON.stringify(body) },
     ),
+  relaySupplyRecords: (page = 1, pageSize = 50, relayId?: number) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    if (relayId) params.set('relay_id', String(relayId))
+    return request<{ ok: boolean; records: RelaySupplyRecord[]; pagination: Pagination }>(
+      `/api/admin/relays/supply-records?${params}`,
+    )
+  },
 }
 
 export function setSpaceCookie(id: number) {

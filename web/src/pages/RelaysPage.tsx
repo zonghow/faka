@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Relay, type RelayGroup, type RelayStats } from '@/lib/api'
+import { api, type Pagination, type Relay, type RelayGroup, type RelayStats, type RelaySupplyRecord } from '@/lib/api'
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -37,6 +38,26 @@ function dash(v: number | undefined | null) {
   return String(v)
 }
 
+function modeLabel(mode: string) {
+  if (mode === 'cdkey') return 'CDKey'
+  if (mode === 'idle') return '空闲文件'
+  return mode || '-'
+}
+
+function statusVariant(status: string): 'default' | 'success' | 'warn' | 'danger' {
+  if (status === 'success') return 'success'
+  if (status === 'partial') return 'warn'
+  if (status === 'failed') return 'danger'
+  return 'default'
+}
+
+function statusLabel(status: string) {
+  if (status === 'success') return '成功'
+  if (status === 'partial') return '部分成功'
+  if (status === 'failed') return '失败'
+  return status || '-'
+}
+
 export function RelaysPage() {
   const [relays, setRelays] = useState<Relay[]>([])
   const [stats, setStats] = useState<StatsMap>({})
@@ -58,6 +79,10 @@ export function RelaysPage() {
   const [concurrency, setConcurrency] = useState(10)
   const [fillingFreeCount, setFillingFreeCount] = useState(false)
   const [supplying, setSupplying] = useState(false)
+  const [records, setRecords] = useState<RelaySupplyRecord[]>([])
+  const [recordsPage, setRecordsPage] = useState(1)
+  const [recordsPagination, setRecordsPagination] = useState<Pagination | null>(null)
+  const [recordsLoading, setRecordsLoading] = useState(true)
   const { toast, show } = useToast()
   const confirm = useConfirm()
 
@@ -96,9 +121,24 @@ export function RelaysPage() {
     }
   }, [loadStats])
 
+  const loadRecords = useCallback(async (page = recordsPage) => {
+    setRecordsLoading(true)
+    try {
+      const res = await api.relaySupplyRecords(page, 50)
+      setRecords(res.records || [])
+      setRecordsPagination(res.pagination)
+    } finally {
+      setRecordsLoading(false)
+    }
+  }, [recordsPage])
+
   useEffect(() => {
     load().catch((e) => show(e.message))
   }, [load, show])
+
+  useEffect(() => {
+    loadRecords(recordsPage).catch((e) => show(e instanceof Error ? e.message : '补号记录加载失败'))
+  }, [loadRecords, recordsPage, show])
 
   const resetForm = () => {
     setEditing(null)
@@ -345,6 +385,95 @@ export function RelaysPage() {
           {renderSub2apiTable()}
           {renderCpaTable()}
           {loading ? <div className="text-xs text-muted-foreground">列表加载中...</div> : null}
+
+          <Card className="overflow-x-auto">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>补号记录</CardTitle>
+              <Button size="sm" variant="secondary" onClick={() => loadRecords(recordsPage)} disabled={recordsLoading}>
+                刷新
+              </Button>
+            </CardHeader>
+            <table className="w-full text-sm">
+              <thead className="border-b border-border text-left text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">时间</th>
+                  <th className="px-4 py-3">中转</th>
+                  <th className="px-4 py-3">类型</th>
+                  <th className="px-4 py-3">方式</th>
+                  <th className="px-4 py-3">空间</th>
+                  <th className="px-4 py-3">分组</th>
+                  <th className="px-4 py-3">并发</th>
+                  <th className="px-4 py-3">请求</th>
+                  <th className="px-4 py-3">成功</th>
+                  <th className="px-4 py-3">失败</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3">说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="px-4 py-6 text-center text-muted-foreground">
+                      {recordsLoading ? '加载中...' : '暂无补号记录'}
+                    </td>
+                  </tr>
+                ) : (
+                  records.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50 align-top">
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">{r.created_at || '-'}</td>
+                      <td className="px-4 py-3 font-medium">{r.relay_name}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{r.relay_type}</td>
+                      <td className="px-4 py-3">{modeLabel(r.mode)}</td>
+                      <td className="px-4 py-3">{r.space_name || '-'}</td>
+                      <td className="px-4 py-3">{r.group_name || (r.group_id ? String(r.group_id) : '-')}</td>
+                      <td className="px-4 py-3">{r.concurrency > 0 ? r.concurrency : '-'}</td>
+                      <td className="px-4 py-3">
+                        {r.mode === 'cdkey'
+                          ? r.card_count > 0
+                            ? `${r.card_count} 卡密`
+                            : dash(r.request_count)
+                          : dash(r.request_count)}
+                      </td>
+                      <td className="px-4 py-3">{dash(r.supplied)}</td>
+                      <td className="px-4 py-3">{dash(r.failed)}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={statusVariant(r.status)}>{statusLabel(r.status)}</Badge>
+                      </td>
+                      <td className="max-w-[280px] px-4 py-3 text-xs text-muted-foreground" title={r.errors || r.message}>
+                        <div className="line-clamp-2">{r.message || '-'}</div>
+                        {r.errors ? <div className="mt-1 line-clamp-2 text-destructive">{r.errors}</div> : null}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            {recordsPagination ? (
+              <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+                <div>
+                  共 {recordsPagination.total} 条 · 第 {recordsPagination.page}/{recordsPagination.total_pages} 页
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!recordsPagination.has_prev || recordsLoading}
+                    onClick={() => setRecordsPage(recordsPagination.prev_page)}
+                  >
+                    上一页
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!recordsPagination.has_next || recordsLoading}
+                    onClick={() => setRecordsPage(recordsPagination.next_page)}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </Card>
         </div>
 
         <Card className="h-fit">
@@ -546,7 +675,8 @@ export function RelaysPage() {
                       : await api.supplyRelay(supplyRelay.id, { mode: 'idle', count: idleCount, group_id, concurrency: conc })
                   show(res.message, 'success')
                   setSupplyRelay(null)
-                  await loadStats([supplyRelay])
+                  await Promise.all([loadStats([supplyRelay]), loadRecords(1)])
+                  setRecordsPage(1)
                 } catch (e) {
                   show(e instanceof Error ? e.message : '补号失败')
                 } finally {

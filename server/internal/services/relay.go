@@ -267,6 +267,91 @@ type SupplyResult struct {
 	Errors   []string `json:"errors,omitempty"`
 }
 
+type SupplyMeta struct {
+	Mode         string
+	SpaceID      *uint
+	SpaceName    string
+	GroupID      int64
+	GroupName    string
+	Concurrency  int
+	CardCount    int
+	RequestCount int
+}
+
+func SaveRelaySupplyRecord(db *gorm.DB, relay *models.Relay, result *SupplyResult, meta SupplyMeta) {
+	if db == nil || relay == nil || result == nil {
+		return
+	}
+	status := "success"
+	if result.Supplied > 0 && result.Failed > 0 {
+		status = "partial"
+	} else if result.Supplied == 0 && result.Failed > 0 {
+		status = "failed"
+	}
+	errText := ""
+	if len(result.Errors) > 0 {
+		// keep record compact
+		parts := result.Errors
+		if len(parts) > 10 {
+			parts = parts[:10]
+		}
+		errText = strings.Join(parts, "；")
+		if len(result.Errors) > 10 {
+			errText += fmt.Sprintf("；...共 %d 条错误", len(result.Errors))
+		}
+	}
+	var groupID *int64
+	if meta.GroupID > 0 {
+		gid := meta.GroupID
+		groupID = &gid
+	}
+	rec := &models.RelaySupplyRecord{
+		RelayID:      relay.ID,
+		RelayName:    relay.Name,
+		RelayType:    relay.Type,
+		Mode:         meta.Mode,
+		SpaceID:      meta.SpaceID,
+		SpaceName:    meta.SpaceName,
+		Supplied:     result.Supplied,
+		Failed:       result.Failed,
+		GroupID:      groupID,
+		GroupName:    meta.GroupName,
+		Concurrency:  meta.Concurrency,
+		CardCount:    meta.CardCount,
+		RequestCount: meta.RequestCount,
+		Message:      truncate(result.Message, 500),
+		Errors:       errText,
+		Status:       status,
+		CreatedAt:    NowUTC(),
+	}
+	_ = db.Create(rec).Error
+}
+
+func ListRelaySupplyRecords(db *gorm.DB, page, pageSize int, relayID uint) ([]models.RelaySupplyRecord, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	q := db.Model(&models.RelaySupplyRecord{})
+	if relayID > 0 {
+		q = q.Where("relay_id = ?", relayID)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []models.RelaySupplyRecord
+	if err := q.Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
 type Sub2APIGroup struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
@@ -308,7 +393,7 @@ func ListSub2APIGroups(relay *models.Relay) ([]Sub2APIGroup, error) {
 	return resp.Data, nil
 }
 
-func normalizeAccountConcurrency(v int) (int, error) {
+func NormalizeAccountConcurrency(v int) (int, error) {
 	if v < 0 {
 		return 0, Err("账号并发不能为负数")
 	}
@@ -340,7 +425,7 @@ func SupplyRelayByCDKey(db *gorm.DB, downloadDir string, relay *models.Relay, ca
 		if groupID <= 0 {
 			return nil, Err("请选择要绑定的分组")
 		}
-		concurrency, err = normalizeAccountConcurrency(concurrency)
+		concurrency, err = NormalizeAccountConcurrency(concurrency)
 		if err != nil {
 			return nil, err
 		}
@@ -441,7 +526,7 @@ func SupplyRelayByIdleFiles(db *gorm.DB, space *models.Space, relay *models.Rela
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, Err("请选择要绑定的分组")
 		}
-		concurrency, err = normalizeAccountConcurrency(concurrency)
+		concurrency, err = NormalizeAccountConcurrency(concurrency)
 		if err != nil {
 			_ = releaseClaimedFiles(db, fileIDs(files))
 			return nil, err
@@ -588,7 +673,7 @@ func pushSub2APIAccounts(relay *models.Relay, raw []byte, groupID int64, concurr
 	if groupID <= 0 {
 		return 0, 0, nil, Err("请选择要绑定的分组")
 	}
-	concurrency, err = normalizeAccountConcurrency(concurrency)
+	concurrency, err = NormalizeAccountConcurrency(concurrency)
 	if err != nil {
 		return 0, 0, nil, err
 	}

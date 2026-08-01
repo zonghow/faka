@@ -90,3 +90,27 @@ type Relay struct {
 }
 
 func (Relay) TableName() string { return "relays" }
+
+// RelaySupplyRecord stores one supply (补号) operation against a relay.
+type RelaySupplyRecord struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	RelayID     uint      `gorm:"index;not null" json:"relay_id"`
+	RelayName   string    `gorm:"size:80;not null" json:"relay_name"`
+	RelayType   string    `gorm:"size:20;index;not null" json:"relay_type"`
+	Mode        string    `gorm:"size:20;index;not null" json:"mode"` // cdkey | idle
+	SpaceID     *uint     `gorm:"index" json:"space_id"`
+	SpaceName   string    `gorm:"size:40" json:"space_name"`
+	Supplied    int       `gorm:"not null;default:0" json:"supplied"`
+	Failed      int       `gorm:"not null;default:0" json:"failed"`
+	GroupID     *int64    `json:"group_id"`
+	GroupName   string    `gorm:"size:120" json:"group_name"`
+	Concurrency int       `gorm:"not null;default:0" json:"concurrency"`
+	CardCount   int       `gorm:"not null;default:0" json:"card_count"`
+	RequestCount int      `gorm:"not null;default:0" json:"request_count"`
+	Message     string    `gorm:"size:500" json:"message"`
+	Errors      string    `gorm:"type:text" json:"errors"`
+	Status      string    `gorm:"size:20;index;default:success" json:"status"` // success | partial | failed
+	CreatedAt   time.Time `gorm:"index" json:"created_at"`
+}
+
+func (RelaySupplyRecord) TableName() string { return "relay_supply_records" }

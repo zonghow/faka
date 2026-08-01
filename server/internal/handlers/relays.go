@@ -148,6 +148,61 @@ func (h *RelayHandler) Groups(c *gin.Context) {
 	ok(c, gin.H{"groups": groups})
 }
 
+func (h *RelayHandler) resolveGroupName(relay *models.Relay, groupID int64) string {
+	if groupID <= 0 || relay == nil || relay.Type != services.RelayTypeSub2API {
+		return ""
+	}
+	groups, err := services.ListSub2APIGroups(relay)
+	if err != nil {
+		return ""
+	}
+	for _, g := range groups {
+		if g.ID == groupID {
+			return g.Name
+		}
+	}
+	return ""
+}
+
+func (h *RelayHandler) SupplyRecords(c *gin.Context) {
+	page, size := parsePage(c, 50, []int{20, 50, 100, 200})
+	var relayID uint
+	if raw := c.Query("relay_id"); raw != "" {
+		if n, err := strconv.ParseUint(raw, 10, 64); err == nil {
+			relayID = uint(n)
+		}
+	}
+	rows, total, err := services.ListRelaySupplyRecords(h.DB, page, size, relayID)
+	if err != nil {
+		serviceFail(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, gin.H{
+			"id":            r.ID,
+			"relay_id":      r.RelayID,
+			"relay_name":    r.RelayName,
+			"relay_type":    r.RelayType,
+			"mode":          r.Mode,
+			"space_id":      r.SpaceID,
+			"space_name":    r.SpaceName,
+			"supplied":      r.Supplied,
+			"failed":        r.Failed,
+			"group_id":      r.GroupID,
+			"group_name":    r.GroupName,
+			"concurrency":   r.Concurrency,
+			"card_count":    r.CardCount,
+			"request_count": r.RequestCount,
+			"message":       r.Message,
+			"errors":        r.Errors,
+			"status":        r.Status,
+			"created_at":    formatTimeVal(r.CreatedAt),
+		})
+	}
+	ok(c, gin.H{"records": items, "pagination": pagination(total, page, size)})
+}
+
 func (h *RelayHandler) Supply(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	var relay models.Relay
@@ -174,6 +229,7 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			mode = "idle"
 		}
 	}
+	groupName := h.resolveGroupName(&relay, body.GroupID)
 	switch mode {
 	case "cdkey":
 		result, err := services.SupplyRelayByCDKey(h.DB, h.Cfg.DownloadDir, &relay, body.CardCode, body.GroupID, body.Concurrency)
@@ -181,6 +237,28 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			serviceFail(c, err)
 			return
 		}
+		cardCount := 0
+		if codes, parseErr := services.ParseCardCodes(body.CardCode); parseErr == nil {
+			cardCount = len(codes)
+		}
+		meta := services.SupplyMeta{
+			Mode:         "cdkey",
+			GroupID:      body.GroupID,
+			GroupName:    groupName,
+			Concurrency:  body.Concurrency,
+			CardCount:    cardCount,
+			RequestCount: cardCount,
+		}
+		if relay.Type == services.RelayTypeSub2API {
+			if conc, nerr := services.NormalizeAccountConcurrency(body.Concurrency); nerr == nil {
+				meta.Concurrency = conc
+			}
+		} else {
+			meta.Concurrency = 0
+			meta.GroupID = 0
+			meta.GroupName = ""
+		}
+		services.SaveRelaySupplyRecord(h.DB, &relay, result, meta)
 		ok(c, gin.H{
 			"message":  result.Message,
 			"supplied": result.Supplied,
@@ -198,6 +276,26 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			serviceFail(c, err)
 			return
 		}
+		sid := space.ID
+		meta := services.SupplyMeta{
+			Mode:         "idle",
+			SpaceID:      &sid,
+			SpaceName:    space.Name,
+			GroupID:      body.GroupID,
+			GroupName:    groupName,
+			Concurrency:  body.Concurrency,
+			RequestCount: body.Count,
+		}
+		if relay.Type == services.RelayTypeSub2API {
+			if conc, nerr := services.NormalizeAccountConcurrency(body.Concurrency); nerr == nil {
+				meta.Concurrency = conc
+			}
+		} else {
+			meta.Concurrency = 0
+			meta.GroupID = 0
+			meta.GroupName = ""
+		}
+		services.SaveRelaySupplyRecord(h.DB, &relay, result, meta)
 		ok(c, gin.H{
 			"message":  result.Message,
 			"supplied": result.Supplied,
