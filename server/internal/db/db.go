@@ -73,6 +73,7 @@ func AutoMigrate(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_upload_records_space_created ON upload_records(space_id, created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_relay_supply_records_created ON relay_supply_records(created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_relay_supply_records_relay_created ON relay_supply_records(relay_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_relay_supply_records_space_created ON relay_supply_records(space_id, created_at)",
 	}
 	for _, stmt := range indexes {
 		if err := db.Exec(stmt).Error; err != nil {

@@ -327,7 +327,7 @@ func SaveRelaySupplyRecord(db *gorm.DB, relay *models.Relay, result *SupplyResul
 	_ = db.Create(rec).Error
 }
 
-func ListRelaySupplyRecords(db *gorm.DB, page, pageSize int, relayID uint) ([]models.RelaySupplyRecord, int64, error) {
+func ListRelaySupplyRecords(db *gorm.DB, page, pageSize int, spaceID uint, relayID uint) ([]models.RelaySupplyRecord, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -338,6 +338,9 @@ func ListRelaySupplyRecords(db *gorm.DB, page, pageSize int, relayID uint) ([]mo
 		pageSize = 200
 	}
 	q := db.Model(&models.RelaySupplyRecord{})
+	if spaceID > 0 {
+		q = q.Where("space_id = ?", spaceID)
+	}
 	if relayID > 0 {
 		q = q.Where("relay_id = ?", relayID)
 	}

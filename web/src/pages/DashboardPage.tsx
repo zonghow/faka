@@ -50,7 +50,7 @@ export function DashboardPage() {
       <Card className="mt-6 border-destructive/40">
         <CardContent className="p-5">
           <h2 className="text-lg font-semibold">危险操作</h2>
-          <p className="mt-2 text-sm text-muted-foreground">清空当前空间下全部卡密、文件、兑换记录和审计日志，不可恢复。</p>
+          <p className="mt-2 text-sm text-muted-foreground">清空当前空间下全部卡密、文件、兑换记录、补号记录和审计日志，不可恢复。</p>
           <Button
             className="mt-4"
             variant="destructive"
@@ -58,7 +58,7 @@ export function DashboardPage() {
             onClick={async () => {
               const ok = await confirm({
                 title: '清空当前空间数据',
-                description: '将删除当前空间下全部卡密、文件、兑换记录和审计日志，此操作不可恢复。',
+                description: '将删除当前空间下全部卡密、文件、兑换记录、补号记录和审计日志，此操作不可恢复。',
                 confirmText: '确认清空',
                 cancelText: '取消',
                 danger: true,

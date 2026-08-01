@@ -165,6 +165,11 @@ func (h *RelayHandler) resolveGroupName(relay *models.Relay, groupID int64) stri
 }
 
 func (h *RelayHandler) SupplyRecords(c *gin.Context) {
+	space, err := resolveSpace(c, h.DB)
+	if err != nil {
+		serviceFail(c, err)
+		return
+	}
 	page, size := parsePage(c, 50, []int{20, 50, 100, 200})
 	var relayID uint
 	if raw := c.Query("relay_id"); raw != "" {
@@ -172,7 +177,7 @@ func (h *RelayHandler) SupplyRecords(c *gin.Context) {
 			relayID = uint(n)
 		}
 	}
-	rows, total, err := services.ListRelaySupplyRecords(h.DB, page, size, relayID)
+	rows, total, err := services.ListRelaySupplyRecords(h.DB, page, size, space.ID, relayID)
 	if err != nil {
 		serviceFail(c, err)
 		return
@@ -229,6 +234,12 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			mode = "idle"
 		}
 	}
+	space, err := resolveSpace(c, h.DB)
+	if err != nil {
+		serviceFail(c, err)
+		return
+	}
+	sid := space.ID
 	groupName := h.resolveGroupName(&relay, body.GroupID)
 	switch mode {
 	case "cdkey":
@@ -243,6 +254,8 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 		}
 		meta := services.SupplyMeta{
 			Mode:         "cdkey",
+			SpaceID:      &sid,
+			SpaceName:    space.Name,
 			GroupID:      body.GroupID,
 			GroupName:    groupName,
 			Concurrency:  body.Concurrency,
@@ -266,17 +279,11 @@ func (h *RelayHandler) Supply(c *gin.Context) {
 			"errors":   result.Errors,
 		})
 	case "idle":
-		space, err := resolveSpace(c, h.DB)
-		if err != nil {
-			serviceFail(c, err)
-			return
-		}
 		result, err := services.SupplyRelayByIdleFiles(h.DB, space, &relay, body.Count, body.GroupID, body.Concurrency)
 		if err != nil {
 			serviceFail(c, err)
 			return
 		}
-		sid := space.ID
 		meta := services.SupplyMeta{
 			Mode:         "idle",
 			SpaceID:      &sid,

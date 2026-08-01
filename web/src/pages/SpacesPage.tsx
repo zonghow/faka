@@ -68,7 +68,7 @@ export function SpacesPage() {
                         onClick={async () => {
                           const ok = await confirm({
                             title: '删除空间',
-                            description: `确定删除空间「${s.name}」吗？该空间下全部卡密、文件、兑换记录和审计日志都会被删除，且不可恢复。`,
+                            description: `确定删除空间「${s.name}」吗？该空间下全部卡密、文件、兑换记录、补号记录和审计日志都会被删除，且不可恢复。`,
                             confirmText: '确认删除',
                             cancelText: '取消',
                             danger: true,
